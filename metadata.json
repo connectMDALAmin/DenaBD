@@ -1,0 +1,6 @@
+{
+  "name": "DenaPawna - Digital Ledger & Khata (দেনাপাওনা)",
+  "description": "Complete Windows XP-styled digital ledger and khata for managing receivables, payables, installments, bilingual reminders, and balance statements.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

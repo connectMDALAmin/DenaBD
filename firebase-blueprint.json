@@ -1,0 +1,170 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered user profile and business details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Auth UID of the user" },
+        "email": { "type": "string", "format": "email", "description": "Email address of user" },
+        "displayName": { "type": "string", "description": "Full name or owner name" },
+        "phoneNumber": { "type": "string", "description": "Contact number" },
+        "businessName": { "type": "string", "description": "Name of shop or ledger" },
+        "role": { "type": "string", "description": "admin or user" },
+        "status": { "type": "string", "description": "active or suspended" },
+        "lastLoginAt": { "type": "string", "description": "ISO timestamp" },
+        "lastQuotePopupDate": { "type": "string", "description": "YYYY-MM-DD in Asia/Dhaka" },
+        "createdAt": { "type": "string", "description": "ISO timestamp" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp" }
+      },
+      "required": ["id", "email", "displayName", "createdAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Authorized system administrator record",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "UID of admin" },
+        "email": { "type": "string", "format": "email", "description": "Admin email address" },
+        "role": { "type": "string", "description": "admin" },
+        "grantedAt": { "type": "string", "description": "ISO timestamp" },
+        "grantedBy": { "type": "string", "description": "Email or system" }
+      },
+      "required": ["uid", "email", "role", "grantedAt"]
+    },
+    "AdminAuditLog": {
+      "title": "AdminAuditLog",
+      "description": "System event and security audit trail",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique log entry ID" },
+        "adminEmail": { "type": "string", "description": "Acting admin email" },
+        "action": { "type": "string", "description": "Action performed" },
+        "details": { "type": "string", "description": "Action details" },
+        "targetUserId": { "type": "string", "description": "Affected user UID" },
+        "timestamp": { "type": "string", "description": "ISO timestamp" }
+      },
+      "required": ["id", "adminEmail", "action", "timestamp"]
+    },
+    "AppSetting": {
+      "title": "AppSetting",
+      "description": "Global application configuration and maintenance flags",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Configuration key (e.g. general)" },
+        "maintenanceMode": { "type": "boolean", "description": "Maintenance mode flag" },
+        "maintenanceMessage": { "type": "string", "description": "Maintenance announcement" },
+        "announcementBanner": { "type": "boolean", "description": "Global banner flag" },
+        "announcementText": { "type": "string", "description": "Announcement text" },
+        "defaultCurrency": { "type": "string", "description": "BDT or USD" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp" },
+        "updatedBy": { "type": "string", "description": "Admin email" }
+      },
+      "required": ["id", "updatedAt"]
+    },
+    "Person": {
+      "title": "Person",
+      "description": "Debtor, creditor, customer or relative contact",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique contact ID" },
+        "userId": { "type": "string", "description": "Owner user UID" },
+        "name": { "type": "string", "description": "Name of the person" },
+        "phone": { "type": "string", "description": "Phone number" },
+        "address": { "type": "string", "description": "Location or address" },
+        "notes": { "type": "string", "description": "Additional notes" },
+        "createdAt": { "type": "string", "description": "ISO timestamp" },
+        "allowPublicLookup": { "type": "boolean", "description": "Allow phone search" }
+      },
+      "required": ["id", "userId", "name", "phone", "createdAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Given or taken financial debt record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique transaction ID" },
+        "userId": { "type": "string", "description": "Owner user UID" },
+        "personId": { "type": "string", "description": "Associated person ID" },
+        "type": { "type": "string", "enum": ["give", "take"], "description": "give (pawna) or take (dena)" },
+        "amount": { "type": "number", "description": "Amount in BDT" },
+        "date": { "type": "string", "description": "Transaction date YYYY-MM-DD" },
+        "dueDate": { "type": "string", "description": "Promise date YYYY-MM-DD" },
+        "description": { "type": "string", "description": "Transaction purpose" },
+        "createdAt": { "type": "string", "description": "ISO timestamp" }
+      },
+      "required": ["id", "userId", "personId", "type", "amount", "date", "createdAt"]
+    },
+    "Repayment": {
+      "title": "Repayment",
+      "description": "Repayment payment record towards debt",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique repayment ID" },
+        "userId": { "type": "string", "description": "Owner user UID" },
+        "personId": { "type": "string", "description": "Associated person ID" },
+        "amount": { "type": "number", "description": "Repayment amount in BDT" },
+        "date": { "type": "string", "description": "Payment date YYYY-MM-DD" },
+        "note": { "type": "string", "description": "Payment notes or receipt info" },
+        "createdAt": { "type": "string", "description": "ISO timestamp" }
+      },
+      "required": ["id", "userId", "personId", "amount", "date", "createdAt"]
+    },
+    "PublicStatement": {
+      "title": "PublicStatement",
+      "description": "Public lookup card queryable by phone number",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique statement ID" },
+        "ownerUserId": { "type": "string", "description": "Ledger owner UID" },
+        "ownerName": { "type": "string", "description": "Owner person or shop name" },
+        "ownerBusiness": { "type": "string", "description": "Business or shop label" },
+        "ownerPhone": { "type": "string", "description": "Owner contact phone" },
+        "personPhone": { "type": "string", "description": "Phone number to search by" },
+        "personName": { "type": "string", "description": "Customer/contact name" },
+        "netBalance": { "type": "number", "description": "Current balance" },
+        "status": { "type": "string", "description": "due_to_me or i_owe or settled" },
+        "totalGiven": { "type": "number", "description": "Sum given" },
+        "totalTaken": { "type": "number", "description": "Sum taken" },
+        "totalRepaid": { "type": "number", "description": "Sum repaid" },
+        "lastUpdated": { "type": "string", "description": "ISO timestamp" },
+        "publicAllowed": { "type": "boolean", "description": "Public search permission flag" }
+      },
+      "required": ["id", "ownerUserId", "personPhone", "personName", "publicAllowed", "lastUpdated"]
+    }
+  },
+  "firestore": {
+    "/admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Explicitly authorized admin accounts"
+    },
+    "/admin_audit_logs/{logId}": {
+      "schema": "AdminAuditLog",
+      "description": "Security and administrative audit trail"
+    },
+    "/app_settings/{settingId}": {
+      "schema": "AppSetting",
+      "description": "Global application configuration and status"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile with business details"
+    },
+    "/users/{userId}/people/{personId}": {
+      "schema": "Person",
+      "description": "Contacts tracked by this user"
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Transactions recorded by this user"
+    },
+    "/users/{userId}/repayments/{repaymentId}": {
+      "schema": "Repayment",
+      "description": "Repayments recorded by this user"
+    },
+    "/public_statements/{statementId}": {
+      "schema": "PublicStatement",
+      "description": "Public lookup collection queryable by phone number"
+    }
+  }
+}

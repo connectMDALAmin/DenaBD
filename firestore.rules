@@ -1,0 +1,177 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Configured System Owner & Super Administrator:
+    // Email: ar2x7ar@gmail.com
+    // UID: ggKzc6zAJwRSBZg4cDQPFOvrZOH3
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.uid == 'ggKzc6zAJwRSBZg4cDQPFOvrZOH3' ||
+        request.auth.token.email == 'ar2x7ar@gmail.com' ||
+        request.auth.token.email == 'AR2x7AR@gmail.com' ||
+        (request.auth.token.email is string && request.auth.token.email.matches('(?i)^ar2x7ar@gmail\\.com$'))
+      );
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUserProfile(userId) {
+      let data = request.resource.data;
+      return data.keys().hasAll(['id', 'email', 'displayName', 'createdAt'])
+        && data.id == userId
+        && data.email is string && data.email.size() <= 128
+        && data.displayName is string && data.displayName.size() <= 100
+        && (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 25))
+        && (!('businessName' in data) || (data.businessName is string && data.businessName.size() <= 100))
+        && (!('role' in data) || (data.role is string && (data.role == 'admin' || data.role == 'user')))
+        && (!('status' in data) || (data.status is string && (data.status == 'active' || data.status == 'suspended')))
+        && (!('lastLoginAt' in data) || (data.lastLoginAt is string && data.lastLoginAt.size() <= 64))
+        && (!('lastQuotePopupDate' in data) || (data.lastQuotePopupDate is string && data.lastQuotePopupDate.size() <= 20))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64))
+        && data.createdAt is string;
+    }
+
+    function isValidPerson(userId) {
+      let data = request.resource.data;
+      return data.keys().hasAll(['id', 'userId', 'name', 'phone', 'createdAt'])
+        && data.userId == userId
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.phone is string && data.phone.size() <= 30
+        && (!('address' in data) || (data.address is string && data.address.size() <= 200))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 500))
+        && (!('allowPublicLookup' in data) || data.allowPublicLookup is bool)
+        && data.createdAt is string;
+    }
+
+    function isValidTransaction(userId) {
+      let data = request.resource.data;
+      return data.keys().hasAll(['id', 'userId', 'personId', 'type', 'amount', 'date', 'createdAt'])
+        && data.userId == userId
+        && data.personId is string && data.personId.size() <= 128
+        && (data.type == 'give' || data.type == 'take' || data.type == 'given' || data.type == 'received' || data.type == 'borrowed' || data.type == 'repaid')
+        && data.amount is number && data.amount >= 0
+        && data.date is string
+        && (!('dueDate' in data) || (data.dueDate is string && data.dueDate.size() <= 30))
+        && (!('description' in data) || (data.description is string && data.description.size() <= 500))
+        && data.createdAt is string;
+    }
+
+    function isValidRepayment(userId) {
+      let data = request.resource.data;
+      return data.keys().hasAll(['id', 'userId', 'personId', 'amount', 'date', 'createdAt'])
+        && data.userId == userId
+        && data.personId is string && data.personId.size() <= 128
+        && data.amount is number && data.amount >= 0
+        && data.date is string
+        && (!('note' in data) || (data.note is string && data.note.size() <= 500))
+        && data.createdAt is string;
+    }
+
+    function isValidPublicStatement() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['id', 'ownerUserId', 'personPhone', 'personName', 'publicAllowed', 'lastUpdated'])
+        && data.ownerUserId == request.auth.uid
+        && data.personPhone is string && data.personPhone.size() <= 30
+        && data.personName is string && data.personName.size() <= 100
+        && data.publicAllowed is bool
+        && (!('netBalance' in data) || data.netBalance is number)
+        && (!('ownerName' in data) || (data.ownerName is string && data.ownerName.size() <= 100))
+        && (!('ownerBusiness' in data) || (data.ownerBusiness is string && data.ownerBusiness.size() <= 100))
+        && (!('ownerPhone' in data) || (data.ownerPhone is string && data.ownerPhone.size() <= 30))
+        && data.lastUpdated is string;
+    }
+
+    // Explicitly Authorized Administrators
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin() || isAdmin();
+    }
+
+    // System Event & Security Audit Trail
+    match /admin_audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow write: if isSignedIn();
+    }
+
+    // Global Application Configuration & System Announcements
+    match /app_settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // User Profiles & Management
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(userId);
+      allow update: if (isOwner(userId) && isValidUserProfile(userId)) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
+
+      // Subcollection: People
+      match /people/{personId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(personId) && isValidPerson(userId);
+        allow update: if isOwner(userId) && isValidPerson(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      // Subcollection: Transactions
+      match /transactions/{transactionId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(transactionId) && isValidTransaction(userId);
+        allow update: if isOwner(userId) && isValidTransaction(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      // Subcollection: Repayments
+      match /repayments/{repaymentId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidId(repaymentId) && isValidRepayment(userId);
+        allow update: if isOwner(userId) && isValidRepayment(userId);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // Public ledger statements (searchable by phone number)
+    match /public_statements/{statementId} {
+      allow get: if resource.data.publicAllowed == true;
+      allow list: if resource.data.publicAllowed == true;
+
+      allow create: if isSignedIn()
+        && isValidId(statementId)
+        && request.resource.data.ownerUserId == request.auth.uid
+        && isValidPublicStatement();
+
+      allow update: if isSignedIn()
+        && resource.data.ownerUserId == request.auth.uid
+        && request.resource.data.ownerUserId == request.auth.uid
+        && isValidPublicStatement();
+
+      allow delete: if isSignedIn()
+        && (resource.data.ownerUserId == request.auth.uid || isAdmin());
+    }
+  }
+}

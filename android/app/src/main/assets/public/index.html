@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+    <meta name="theme-color" content="#0055EA" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>DenaPawna - Digital Ledger & Khata (দেনাপাওনা)</title>
+    <meta name="description" content="Complete Windows XP-styled digital ledger and khata for managing receivables, payables, installments, bilingual reminders, and balance statements." />
+    <meta property="og:title" content="DenaPawna - Digital Ledger & Khata (দেনাপাওনা)" />
+    <meta property="og:description" content="Complete Windows XP-styled digital ledger and khata for managing receivables, payables, installments, bilingual reminders, and balance statements." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      /* Ensure window.fetch has both getter and setter so browser extensions that intercept fetch requests can assign to it safely */
+      (function() {
+        try {
+          var originalFetch = window.fetch;
+          if (typeof originalFetch === 'function') {
+            var customFetch = function() {
+              return originalFetch.apply(window, arguments);
+            };
+            Object.defineProperty(window, 'fetch', {
+              get: function() {
+                return customFetch;
+              },
+              set: function(val) {
+                customFetch = val;
+              },
+              configurable: true,
+              enumerable: true
+            });
+          }
+        } catch (_) {
+          // ignore if already configured
+        }
+
+        /* Suppress external Chrome/browser extension script errors from bubbling to app window */
+        window.addEventListener('error', function(event) {
+          if (
+            (event.filename && (
+              event.filename.indexOf('chrome-extension://') !== -1 ||
+              event.filename.indexOf('moz-extension://') !== -1 ||
+              event.filename.indexOf('safari-extension://') !== -1
+            )) ||
+            (event.message && (
+              event.message.indexOf('chrome-extension://') !== -1 ||
+              event.message.indexOf('Cannot set property fetch') !== -1
+            ))
+          ) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+      })();
+    </script>
+    <!-- Classic Windows XP Tahoma font & Bengali font for authentic rendering -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="/assets/index-WJQ4t8FA.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-l6IbEQDc.css">
+  <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
+  <body class="bg-[#ECE9D8] text-[#000000] select-none overflow-x-hidden antialiased">
+    <div id="root"></div>
+  </body>
+</html>
