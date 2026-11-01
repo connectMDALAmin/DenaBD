@@ -40,6 +40,7 @@ import { DisplayPropertiesModal, WallpaperConfig } from './components/xp/Display
 import { shouldShowDailyIslamicQuote, markDailyIslamicQuoteShown } from './utils/dateUtils';
 import { soundService } from './services/sound/soundService';
 import { XPMaintenanceScreen } from './components/xp/XPMaintenanceScreen';
+import { XPNewUserSetupModal } from './components/xp/XPNewUserSetupModal';
 
 const MainAppContent: React.FC = () => {
   const {
@@ -99,6 +100,22 @@ const MainAppContent: React.FC = () => {
   const [isIslamicQuoteOpen, setIsIslamicQuoteOpen] = useState(false);
   const [isDeveloperInfoOpen, setIsDeveloperInfoOpen] = useState(false);
   const [isLogOffModalOpen, setIsLogOffModalOpen] = useState(false);
+  const [isNewUserSetupOpen, setIsNewUserSetupOpen] = useState(false);
+
+  // New User Onboarding Setup Check:
+  // Prompt business setup modal for new users who haven't completed onboarding or have missing business info
+  useEffect(() => {
+    if (!firebaseUser) return;
+    const isProfileUnset =
+      !userProfile.onboardingCompleted &&
+      (!userProfile.phone || !userProfile.address || !userProfile.businessName || userProfile.businessName === 'আমার ব্যবসা');
+    if (isProfileUnset) {
+      const timer = setTimeout(() => {
+        setIsNewUserSetupOpen(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [firebaseUser, userProfile.onboardingCompleted, userProfile.businessName, userProfile.phone, userProfile.address]);
 
   // Daily Islamic Quote Auto-popup:
   // Display one Islamic quote popup after login on the user's first successful login of each day (Asia/Dhaka timezone).
@@ -830,6 +847,12 @@ const MainAppContent: React.FC = () => {
         isOpen={isPrintModalOpen}
         onClose={() => setIsPrintModalOpen(false)}
         initialContactId={printContactId}
+      />
+
+      {/* New User Business Profile Setup Wizard */}
+      <XPNewUserSetupModal
+        isOpen={isNewUserSetupOpen}
+        onClose={() => setIsNewUserSetupOpen(false)}
       />
     </>
   );

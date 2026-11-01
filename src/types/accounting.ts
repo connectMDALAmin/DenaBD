@@ -100,6 +100,7 @@ export interface UserProfile {
   backupReminderDays: number;
   createdAt: string;
   updatedAt: string;
+  onboardingCompleted?: boolean;
 }
 
 export interface BackupData {

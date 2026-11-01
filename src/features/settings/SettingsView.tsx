@@ -11,6 +11,8 @@ export const SettingsView: React.FC = () => {
   const {
     userProfile,
     saveUserProfile,
+    deleteUserProfile,
+    isAdmin,
     syncState,
     lastSyncTime,
     triggerSync,
@@ -53,6 +55,8 @@ export const SettingsView: React.FC = () => {
   // Danger Zone Modals State
   const [isDeleteContactsModalOpen, setIsDeleteContactsModalOpen] = useState(false);
   const [isDeleteTxModalOpen, setIsDeleteTxModalOpen] = useState(false);
+  const [isDeleteProfileModalOpen, setIsDeleteProfileModalOpen] = useState(false);
+  const [isDeletingProfile, setIsDeletingProfile] = useState(false);
   const [dangerActionMsg, setDangerActionMsg] = useState<string | null>(null);
 
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -144,6 +148,28 @@ export const SettingsView: React.FC = () => {
         : `All ${res.deletedCount} transaction records deleted and ledger balances reset to 0.`
     );
     setTimeout(() => setDangerActionMsg(null), 4000);
+  };
+
+  const handleConfirmDeleteProfile = async () => {
+    setIsDeletingProfile(true);
+    try {
+      await deleteUserProfile();
+      setIsDeleteProfileModalOpen(false);
+      soundService.playLogoff();
+      setDangerActionMsg(
+        language === 'bn'
+          ? 'আপনার প্রোফাইল ও অ্যাকাউন্ট সফলভাবে মুছে ফেলা হয়েছে।'
+          : 'Your account and profile have been permanently deleted.'
+      );
+    } catch (err: any) {
+      setDangerActionMsg(
+        language === 'bn'
+          ? `মুছে ফেলতে ব্যর্থ হয়েছে: ${err?.message || 'ত্রুটি ঘটেছে'}`
+          : `Failed to delete profile: ${err?.message || 'Error occurred'}`
+      );
+    } finally {
+      setIsDeletingProfile(false);
+    }
   };
 
   return (
@@ -461,94 +487,96 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Global Announcement Banner Editor */}
-      <form
-        onSubmit={handleSaveAnnouncement}
-        className="bg-white p-4 rounded-[4px] border border-[#7F9DB9] xp-bevel-inset space-y-3 text-xs"
-      >
-        <div className="flex items-center justify-between pb-2 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <Megaphone size={16} className="text-[#0055EA]" />
-            <h3 className="font-bold text-gray-900">
-              {language === 'bn' ? 'গ্লোবাল বিজ্ঞাপন ও নোটিশ ব্যানার (Global Announcement Banner)' : 'Global Announcement Banner (Menu Bar Ticker)'}
-            </h3>
-          </div>
-          <span className="text-[11px] text-gray-500 font-medium">
-            {language === 'bn' ? 'মেনু বারের স্ক্রোলিং টেক্সট' : 'Menu Bar Scrolling Ticker'}
-          </span>
-        </div>
-
-        {announcementSaveMsg && (
-          <div className="p-2.5 bg-green-50 border border-green-300 rounded text-xs text-green-800 flex items-center gap-2">
-            <CheckCircle size={15} className="text-green-600 shrink-0" />
-            <span>{announcementSaveMsg}</span>
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="announcementBannerToggle"
-            checked={announcementBanner}
-            onChange={(e) => setAnnouncementBanner(e.target.checked)}
-            className="w-4 h-4 accent-[#0055EA] cursor-pointer"
-          />
-          <label htmlFor="announcementBannerToggle" className="font-semibold text-gray-800 cursor-pointer">
-            {language === 'bn'
-              ? 'মেনু বারে স্ক্রোলিং বিজ্ঞাপন ব্যানার সক্রিয় রাখুন (Enable Scrolling Announcement Banner)'
-              : 'Show scrolling announcement ticker in top menu bar'}
-          </label>
-        </div>
-
-        <div>
-          <label className="block text-gray-700 font-semibold mb-1">
-            {language === 'bn' ? 'বিজ্ঞাপন বা ঘোষণার লেখা (Announcement / Ad Text):' : 'Announcement / Ad Text:'}
-          </label>
-          <textarea
-            rows={2}
-            value={announcementText}
-            onChange={(e) => setAnnouncementText(e.target.value)}
-            placeholder={
-              language === 'bn'
-                ? 'বিজ্ঞাপনের টেক্সট লিখুন, যেমন: ⭐ দেনাপাওনা ডিজিটাল লেজার — নিরাপদ ১০০% অটো ক্লাউড ব্যাকআপ...'
-                : 'Enter your custom advertisement or announcement text...'
-            }
-            className="w-full px-2.5 py-2 bg-white border border-[#7F9DB9] outline-none text-xs rounded-[2px]"
-          />
-        </div>
-
-        {/* Live Preview Box */}
-        <div className="space-y-1">
-          <span className="text-[11px] font-bold text-gray-600">
-            {language === 'bn' ? 'লাইভ প্রিভিউ (Live Preview):' : 'Live Preview:'}
-          </span>
-          <div className="h-[26px] bg-white border border-[#7F9DB9] xp-bevel-inset rounded px-2 flex items-center overflow-hidden">
-            <span className="shrink-0 text-[10px] font-bold text-[#A91B0D] bg-[#FDE8E8] px-1 py-0.2 rounded border border-[#F8B4B4] mr-2 flex items-center gap-1 select-none">
-              <span className="animate-pulse">📢</span>
-              <span>{language === 'bn' ? 'বিজ্ঞাপন' : 'Ads'}</span>
+      {/* Global Announcement Banner Editor - Only available to Administrators */}
+      {isAdmin && (
+        <form
+          onSubmit={handleSaveAnnouncement}
+          className="bg-white p-4 rounded-[4px] border border-[#7F9DB9] xp-bevel-inset space-y-3 text-xs"
+        >
+          <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <Megaphone size={16} className="text-[#0055EA]" />
+              <h3 className="font-bold text-gray-900">
+                {language === 'bn' ? 'গ্লোবাল বিজ্ঞাপন ও নোটিশ ব্যানার (Global Announcement Banner)' : 'Global Announcement Banner (Menu Bar Ticker)'}
+              </h3>
+            </div>
+            <span className="text-[11px] text-gray-500 font-medium">
+              {language === 'bn' ? 'মেনু বারের স্ক্রোলিং টেক্সট' : 'Menu Bar Scrolling Ticker'}
             </span>
-            <div className="relative w-full overflow-hidden whitespace-nowrap">
-              <span className="xp-marquee-text text-[11px] text-[#003399] font-medium">
-                {announcementBanner && announcementText.trim()
-                  ? announcementText
-                  : '— (বিজ্ঞাপন বন্ধ রয়েছে / Announcement disabled) —'}
+          </div>
+
+          {announcementSaveMsg && (
+            <div className="p-2.5 bg-green-50 border border-green-300 rounded text-xs text-green-800 flex items-center gap-2">
+              <CheckCircle size={15} className="text-green-600 shrink-0" />
+              <span>{announcementSaveMsg}</span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="announcementBannerToggle"
+              checked={announcementBanner}
+              onChange={(e) => setAnnouncementBanner(e.target.checked)}
+              className="w-4 h-4 accent-[#0055EA] cursor-pointer"
+            />
+            <label htmlFor="announcementBannerToggle" className="font-semibold text-gray-800 cursor-pointer">
+              {language === 'bn'
+                ? 'মেনু বারে স্ক্রোলিং বিজ্ঞাপন ব্যানার সক্রিয় রাখুন (Enable Scrolling Announcement Banner)'
+                : 'Show scrolling announcement ticker in top menu bar'}
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-gray-700 font-semibold mb-1">
+              {language === 'bn' ? 'বিজ্ঞাপন বা ঘোষণার লেখা (Announcement / Ad Text):' : 'Announcement / Ad Text:'}
+            </label>
+            <textarea
+              rows={2}
+              value={announcementText}
+              onChange={(e) => setAnnouncementText(e.target.value)}
+              placeholder={
+                language === 'bn'
+                  ? 'বিজ্ঞাপনের টেক্সট লিখুন, যেমন: ⭐ দেনাপাওনা ডিজিটাল লেজার — নিরাপদ ১০০% অটো ক্লাউড ব্যাকআপ...'
+                  : 'Enter your custom advertisement or announcement text...'
+              }
+              className="w-full px-2.5 py-2 bg-white border border-[#7F9DB9] outline-none text-xs rounded-[2px]"
+            />
+          </div>
+
+          {/* Live Preview Box */}
+          <div className="space-y-1">
+            <span className="text-[11px] font-bold text-gray-600">
+              {language === 'bn' ? 'লাইভ প্রিভিউ (Live Preview):' : 'Live Preview:'}
+            </span>
+            <div className="h-[26px] bg-white border border-[#7F9DB9] xp-bevel-inset rounded px-2 flex items-center overflow-hidden">
+              <span className="shrink-0 text-[10px] font-bold text-[#A91B0D] bg-[#FDE8E8] px-1 py-0.2 rounded border border-[#F8B4B4] mr-2 flex items-center gap-1 select-none">
+                <span className="animate-pulse">📢</span>
+                <span>{language === 'bn' ? 'বিজ্ঞাপন' : 'Ads'}</span>
               </span>
+              <div className="relative w-full overflow-hidden whitespace-nowrap">
+                <span className="xp-marquee-text text-[11px] text-[#003399] font-medium">
+                  {announcementBanner && announcementText.trim()
+                    ? announcementText
+                    : '— (বিজ্ঞাপন বন্ধ রয়েছে / Announcement disabled) —'}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="pt-1 flex justify-end">
-          <button
-            type="submit"
-            className="xp-button-primary px-4 py-1.5 text-xs font-semibold cursor-pointer flex items-center gap-1.5"
-          >
-            <Save size={13} />
-            <span>
-              {language === 'bn' ? 'বিজ্ঞাপন সংরক্ষণ করুন' : 'Save Announcement Banner'}
-            </span>
-          </button>
-        </div>
-      </form>
+          <div className="pt-1 flex justify-end">
+            <button
+              type="submit"
+              className="xp-button-primary px-4 py-1.5 text-xs font-semibold cursor-pointer flex items-center gap-1.5"
+            >
+              <Save size={13} />
+              <span>
+                {language === 'bn' ? 'বিজ্ঞাপন সংরক্ষণ করুন' : 'Save Announcement Banner'}
+              </span>
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* Danger Zone: Permanent Account Ledger Deletion */}
       <div className="bg-[#FFF5F5] p-4 rounded-[4px] border-2 border-[#E57373] xp-bevel-inset space-y-3 text-xs">
@@ -568,7 +596,7 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
           {/* Card 1: Delete All Contacts */}
           <div className="bg-white p-3.5 rounded-[4px] border border-[#FFCDD2] shadow-xs flex flex-col justify-between space-y-3">
             <div className="space-y-1.5">
@@ -632,6 +660,38 @@ export const SettingsView: React.FC = () => {
               <span>{language === 'bn' ? 'সকল লেনদেন হিস্ট্রি মুছুন...' : 'Delete All History...'}</span>
             </button>
           </div>
+
+          {/* Card 3: Delete Entire Account & Profile */}
+          <div className="bg-white p-3.5 rounded-[4px] border-2 border-[#EF5350] shadow-xs flex flex-col justify-between space-y-3">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                  <Trash2 size={14} className="text-red-700" />
+                  <span>{language === 'bn' ? 'প্রোফাইল ও অ্যাকাউন্ট মুছুন' : 'Delete Account & Profile'}</span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-red-600 text-white">
+                  {language === 'bn' ? 'স্থায়ী বিলোপ' : 'PERMANENT'}
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-600 leading-relaxed">
+                {language === 'bn'
+                  ? 'আপনার সম্পূর্ণ প্রোফাইল, সমস্ত কন্ট্যাক্ট, সমস্ত লেনদেনের খাতা এবং ফায়ারবেস ক্লাউডের সকল সংরক্ষিত তথ্য স্থায়ীভাবে মুছে অ্যাকাউন্ট সম্পূর্ণ বন্ধ করে দেবে।'
+                  : 'Permanently wipes your profile, all contacts, all ledger records, and cloud data, deleting your account completely.'}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                soundService.playClick();
+                setIsDeleteProfileModalOpen(true);
+              }}
+              className="w-full py-1.5 px-3 bg-[#D32F2F] hover:bg-[#B71C1C] text-white border border-[#B71C1C] rounded-[3px] font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition shadow-xs"
+            >
+              <Trash2 size={13} />
+              <span>{language === 'bn' ? 'প্রোফাইল চিরতরে মুছুন...' : 'Delete Account & Profile...'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -667,6 +727,23 @@ export const SettingsView: React.FC = () => {
         confirmButtonText={language === 'bn' ? 'সকল ইতিহাস মুছুন' : 'Permanently Wipe History'}
         onConfirm={handleConfirmDeleteAllTransactions}
         onClose={() => setIsDeleteTxModalOpen(false)}
+      />
+
+      {/* Double Confirmation Modal: Delete Entire Account & Profile */}
+      <DangerConfirmModal
+        isOpen={isDeleteProfileModalOpen}
+        title={language === 'bn' ? 'প্রোফাইল ও অ্যাকাউন্ট স্থায়ীভাবে মুছে ফেলার নিশ্চয়তা' : 'Confirm Permanent Account Deletion'}
+        description={
+          language === 'bn'
+            ? 'আপনি কি নিশ্চিত যে আপনার সম্পূর্ণ অ্যাকাউন্ট ও প্রোফাইল স্থায়ীভাবে মুছে ফেলতে চান? আপনার সমস্ত কন্ট্যাক্ট, লেনদেনের খাতা এবং ফায়ারবেসের সকল ক্লাউড ডাটা চিরতরে ধ্বংস হয়ে যাবে। এই কাজ আর পূর্বাবস্থায় ফিরিয়ে আনা সম্ভব নয়!'
+            : 'Are you sure you want to permanently delete your entire account and profile? All ledger data, contacts, and cloud records will be erased forever. This action is irreversible!'
+        }
+        itemCountInfo={`Account: ${firebaseUser?.email || userProfile.ownerName || 'Active User'}`}
+        confirmPhrase="DELETE MY ACCOUNT"
+        alternativePhrase="আমার একাউন্ট মুছুন"
+        confirmButtonText={isDeletingProfile ? (language === 'bn' ? 'মুছে ফেলা হচ্ছে...' : 'Deleting...') : (language === 'bn' ? 'স্থায়ীভাবে অ্যাকাউন্ট মুছুন' : 'Permanently Delete Account')}
+        onConfirm={handleConfirmDeleteProfile}
+        onClose={() => setIsDeleteProfileModalOpen(false)}
       />
     </div>
   );

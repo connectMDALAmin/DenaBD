@@ -6,6 +6,7 @@ import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
   updateProfile,
+  deleteUser,
   User,
 } from 'firebase/auth';
 import {
@@ -20,7 +21,7 @@ import {
   getDocs,
 } from 'firebase/firestore';
 import { auth, googleProvider, firestore } from './firebaseConfig';
-import { Contact, Transaction } from '../../types/accounting';
+import { Contact, Transaction, UserProfile } from '../../types/accounting';
 import { db } from '../storage/db';
 import { calculateContactBalance, fromMinorUnits } from '../accounting/calculator';
 
@@ -516,34 +517,40 @@ class FirebaseSyncService {
     try {
       const peopleCol = collection(firestore, `users/${userId}/people`);
       const unsubPeople = onSnapshot(peopleCol, (snapshot) => {
-        if (!snapshot.empty) {
-          const loadedContacts: Contact[] = snapshot.docs.map((docSnap) => {
-            const data = docSnap.data();
-            return {
-              id: docSnap.id,
-              userId: data.userId || userId,
-              name: data.name || 'Unnamed',
-              phone: data.phone || '',
-              email: data.email,
-              address: data.address,
-              category: data.category || 'customer',
-              tags: data.tags || [],
-              notes: data.notes,
-              openingBalance: data.openingBalance || 0,
-              publicLookupEnabled: data.allowPublicLookup ?? data.publicLookupEnabled ?? false,
-              publicAccessToken: data.publicAccessToken || '1234',
-              reminderPreference: data.reminderPreference || 'whatsapp',
-              createdAt: data.createdAt || new Date().toISOString(),
-              updatedAt: data.updatedAt || new Date().toISOString(),
-              syncStatus: 'synced',
-            };
-          });
+        const loadedContacts: Contact[] = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            userId: data.userId || userId,
+            name: data.name || 'Unnamed',
+            phone: data.phone || '',
+            email: data.email,
+            address: data.address,
+            category: data.category || 'customer',
+            tags: data.tags || [],
+            notes: data.notes,
+            openingBalance: data.openingBalance || 0,
+            publicLookupEnabled: data.allowPublicLookup ?? data.publicLookupEnabled ?? false,
+            publicAccessToken: data.publicAccessToken || '1234',
+            reminderPreference: data.reminderPreference || 'whatsapp',
+            createdAt: data.createdAt || new Date().toISOString(),
+            updatedAt: data.updatedAt || new Date().toISOString(),
+            syncStatus: 'synced',
+          };
+        });
 
-          const currentLocal = db.getContacts();
-          const merged = new Map(currentLocal.map((c) => [c.id, c]));
-          loadedContacts.forEach((c) => merged.set(c.id, c));
-          db.replaceAllData(Array.from(merged.values()), db.getTransactions());
-        }
+        // Cloud snapshot is source of truth. Preserve only locally unsaved pending items.
+        const currentLocal = db.getContacts();
+        const pendingLocal = currentLocal.filter((c) => c.syncStatus === 'pending');
+        const finalContactsMap = new Map<string, Contact>();
+        loadedContacts.forEach((c) => finalContactsMap.set(c.id, c));
+        pendingLocal.forEach((c) => {
+          if (!finalContactsMap.has(c.id)) {
+            finalContactsMap.set(c.id, c);
+          }
+        });
+        db.replaceAllData(Array.from(finalContactsMap.values()), db.getTransactions());
+        db.recordSyncSuccess();
       }, (err) => {
         console.warn('Firestore people snapshot notification:', err);
       });
@@ -552,33 +559,39 @@ class FirebaseSyncService {
       // 2. Listen to Transactions
       const txCol = collection(firestore, `users/${userId}/transactions`);
       const unsubTx = onSnapshot(txCol, (snapshot) => {
-        if (!snapshot.empty) {
-          const loadedTxs: Transaction[] = snapshot.docs.map((docSnap) => {
-            const data = docSnap.data();
-            return {
-              id: docSnap.id,
-              userId: data.userId || userId,
-              contactId: data.personId || data.contactId,
-              type: data.type === 'give' ? 'given' : data.type === 'take' ? 'borrowed' : data.type,
-              amount: data.amount || 0,
-              date: data.date || new Date().toISOString().split('T')[0],
-              dueDate: data.dueDate,
-              paymentMethod: data.paymentMethod || 'cash',
-              category: data.category || data.description || 'General',
-              notes: data.notes || data.description,
-              referenceNumber: data.referenceNumber,
-              status: data.status || 'active',
-              createdAt: data.createdAt || new Date().toISOString(),
-              updatedAt: data.updatedAt || new Date().toISOString(),
-              syncStatus: 'synced',
-            };
-          });
+        const loadedTxs: Transaction[] = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            userId: data.userId || userId,
+            contactId: data.personId || data.contactId,
+            type: data.type === 'give' ? 'given' : data.type === 'take' ? 'borrowed' : data.type,
+            amount: data.amount || 0,
+            date: data.date || new Date().toISOString().split('T')[0],
+            dueDate: data.dueDate,
+            paymentMethod: data.paymentMethod || 'cash',
+            category: data.category || data.description || 'General',
+            notes: data.notes || data.description,
+            referenceNumber: data.referenceNumber,
+            status: data.status || 'active',
+            createdAt: data.createdAt || new Date().toISOString(),
+            updatedAt: data.updatedAt || new Date().toISOString(),
+            syncStatus: 'synced',
+          };
+        });
 
-          const currentTxs = db.getTransactions();
-          const merged = new Map(currentTxs.map((t) => [t.id, t]));
-          loadedTxs.forEach((t) => merged.set(t.id, t));
-          db.replaceAllData(db.getContacts(), Array.from(merged.values()));
-        }
+        // Cloud snapshot is source of truth. Preserve only locally unsaved pending items.
+        const currentTxs = db.getTransactions();
+        const pendingTxs = currentTxs.filter((t) => t.syncStatus === 'pending');
+        const finalTxsMap = new Map<string, Transaction>();
+        loadedTxs.forEach((t) => finalTxsMap.set(t.id, t));
+        pendingTxs.forEach((t) => {
+          if (!finalTxsMap.has(t.id)) {
+            finalTxsMap.set(t.id, t);
+          }
+        });
+        db.replaceAllData(db.getContacts(), Array.from(finalTxsMap.values()));
+        db.recordSyncSuccess();
       }, (err) => {
         console.warn('Firestore transactions snapshot notification:', err);
       });
@@ -592,6 +605,7 @@ class FirebaseSyncService {
   public async syncContactToCloud(contact: Contact): Promise<void> {
     if (!this.currentUser) return;
     try {
+      db.setSyncState('syncing');
       const docRef = doc(firestore, `users/${this.currentUser.uid}/people`, contact.id);
       await setDoc(docRef, {
         id: contact.id,
@@ -609,14 +623,17 @@ class FirebaseSyncService {
       });
 
       await this.updatePublicStatement(contact);
+      db.recordSyncSuccess();
     } catch (e) {
       console.warn('Failed to sync contact to Firestore:', e);
+      db.setSyncState('online');
     }
   }
 
   public async syncTransactionToCloud(tx: Transaction): Promise<void> {
     if (!this.currentUser) return;
     try {
+      db.setSyncState('syncing');
       const docRef = doc(firestore, `users/${this.currentUser.uid}/transactions`, tx.id);
       await setDoc(docRef, {
         id: tx.id,
@@ -638,28 +655,119 @@ class FirebaseSyncService {
       if (contact) {
         await this.updatePublicStatement(contact);
       }
+      db.recordSyncSuccess();
     } catch (e) {
       console.warn('Failed to sync transaction to Firestore:', e);
+      db.setSyncState('online');
     }
   }
 
   public async deleteContactFromCloud(contactId: string): Promise<void> {
     if (!this.currentUser) return;
     try {
+      db.setSyncState('syncing');
       const docRef = doc(firestore, `users/${this.currentUser.uid}/people`, contactId);
       await deleteDoc(docRef);
+
+      // Clean up corresponding public statement
+      const cleanPhoneQuery = query(
+        collection(firestore, 'public_statements'),
+        where('ownerUserId', '==', this.currentUser.uid)
+      );
+      const snap = await getDocs(cleanPhoneQuery);
+      for (const d of snap.docs) {
+        const stmt = d.data();
+        if (stmt.personId === contactId || (stmt.id && stmt.id.includes(contactId))) {
+          await deleteDoc(d.ref);
+        }
+      }
+
+      db.recordSyncSuccess();
     } catch (e) {
       console.warn('Failed to delete contact from Firestore:', e);
+      db.setSyncState('online');
     }
   }
 
   public async deleteTransactionFromCloud(txId: string): Promise<void> {
     if (!this.currentUser) return;
     try {
+      db.setSyncState('syncing');
       const docRef = doc(firestore, `users/${this.currentUser.uid}/transactions`, txId);
       await deleteDoc(docRef);
+      db.recordSyncSuccess();
     } catch (e) {
       console.warn('Failed to delete transaction from Firestore:', e);
+      db.setSyncState('online');
+    }
+  }
+
+  public async syncUserProfileToCloud(profile: Partial<UserProfile>): Promise<void> {
+    if (!this.currentUser) return;
+    try {
+      db.setSyncState('syncing');
+      const userDocRef = doc(firestore, 'users', this.currentUser.uid);
+      const payload: Record<string, any> = {
+        id: this.currentUser.uid,
+        updatedAt: new Date().toISOString(),
+      };
+      if (profile.ownerName || this.currentUser.displayName) {
+        payload.displayName = (profile.ownerName || this.currentUser.displayName || 'User').trim().slice(0, 100);
+      }
+      if (profile.businessName) {
+        payload.businessName = profile.businessName.trim().slice(0, 100);
+      }
+      if (profile.phone) {
+        payload.phoneNumber = profile.phone.trim().slice(0, 25);
+      }
+      if (profile.address) {
+        payload.address = profile.address.trim().slice(0, 200);
+      }
+      if (this.currentUser.email) {
+        payload.email = this.currentUser.email;
+      }
+      await setDoc(userDocRef, payload, { merge: true });
+      db.recordSyncSuccess();
+    } catch (e) {
+      console.warn('Failed to sync user profile to cloud:', e);
+      db.setSyncState('online');
+    }
+  }
+
+  public async deleteUserProfileFromCloud(): Promise<void> {
+    if (!this.currentUser) return;
+    const uid = this.currentUser.uid;
+    try {
+      db.setSyncState('syncing');
+      // 1. Delete all contacts and public statements
+      await this.deleteAllContactsFromCloud();
+      // 2. Delete all transactions and repayments
+      await this.deleteAllTransactionsFromCloud();
+      // 3. Delete user document
+      const userDocRef = doc(firestore, 'users', uid);
+      await deleteDoc(userDocRef);
+      // 4. Delete admin record if any
+      const adminDocRef = doc(firestore, 'admins', uid);
+      await deleteDoc(adminDocRef).catch(() => {});
+      // 5. Try deleting Auth user account
+      if (auth.currentUser && auth.currentUser.uid === uid) {
+        try {
+          await deleteUser(auth.currentUser);
+        } catch (authErr) {
+          console.warn('Firebase deleteUser note (may require recent authentication, signing out):', authErr);
+          await signOut(auth);
+        }
+      }
+      // 6. Clear local scoped data
+      db.clearAllUserData();
+      this.clearStoredSession();
+      this.currentUser = null;
+      this.isAdminUser = false;
+      this.stopFirestoreListeners();
+      this.notifyAuthSubscribers();
+    } catch (e) {
+      console.error('Failed to delete user profile from cloud:', e);
+      throw e;
     }
   }
 

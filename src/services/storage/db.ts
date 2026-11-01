@@ -121,15 +121,18 @@ class DatabaseService {
     return safeStorage.getItem(LAST_SYNC_KEY) || new Date().toISOString();
   }
 
+  public recordSyncSuccess() {
+    safeStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
+    this.setSyncState('online');
+    this.notify();
+  }
+
   public async triggerSync(): Promise<void> {
     if (!isOnline()) {
       this.setSyncState('offline');
       return;
     }
     this.setSyncState('syncing');
-
-    // Simulate cloud Firestore synchronization handshake
-    await new Promise((r) => setTimeout(r, 600));
 
     // Mark pending transactions as synced
     const txs = this.getTransactions();
@@ -143,12 +146,10 @@ class DatabaseService {
     });
 
     if (updated) {
-      safeStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(syncedTxs));
+      safeStorage.setItem(this.getTransactionsKey(), JSON.stringify(syncedTxs));
     }
 
-    safeStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
-    this.setSyncState('online');
-    this.notify();
+    this.recordSyncSuccess();
   }
 
   // --- User Profile ---
@@ -442,6 +443,14 @@ class DatabaseService {
     if (profile) {
       safeStorage.setItem(this.getUserKey(), JSON.stringify(profile));
     }
+    this.notify();
+  }
+
+  public clearAllUserData() {
+    safeStorage.removeItem(this.getContactsKey());
+    safeStorage.removeItem(this.getTransactionsKey());
+    safeStorage.removeItem(this.getUserKey());
+    this.currentUserId = null;
     this.notify();
   }
 }

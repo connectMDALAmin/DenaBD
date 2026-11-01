@@ -52,6 +52,7 @@ interface AppContextType {
   deleteTransaction: (id: string) => boolean;
   deleteAllTransactions: () => Promise<{ deletedCount: number }>;
   saveUserProfile: (profile: Partial<UserProfile>) => UserProfile;
+  deleteUserProfile: () => Promise<void>;
   triggerSync: () => Promise<void>;
   resetToSampleData: () => void;
   deleteDemoData: () => {
@@ -145,7 +146,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteContact = (id: string) => {
-    return db.deleteContact(id);
+    const ok = db.deleteContact(id);
+    firebaseSync.deleteContactFromCloud(id);
+    return ok;
   };
 
   const deleteAllContacts = async (): Promise<{ deletedCount: number }> => {
@@ -161,11 +164,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const cancelTransaction = (id: string) => {
-    return db.cancelTransaction(id);
+    const ok = db.cancelTransaction(id);
+    const updated = db.getTransactionById(id);
+    if (updated) {
+      firebaseSync.syncTransactionToCloud(updated);
+    }
+    return ok;
   };
 
   const deleteTransaction = (id: string) => {
-    return db.deleteTransaction(id);
+    const ok = db.deleteTransaction(id);
+    firebaseSync.deleteTransactionFromCloud(id);
+    return ok;
   };
 
   const deleteAllTransactions = async (): Promise<{ deletedCount: number }> => {
@@ -175,7 +185,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const saveUserProfile = (profile: Partial<UserProfile>) => {
-    return db.saveUserProfile(profile);
+    const updated = db.saveUserProfile(profile);
+    firebaseSync.syncUserProfileToCloud(updated);
+    return updated;
+  };
+
+  const deleteUserProfile = async (): Promise<void> => {
+    await firebaseSync.deleteUserProfileFromCloud();
   };
 
   const triggerSync = async () => {
@@ -252,6 +268,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteTransaction,
         deleteAllTransactions,
         saveUserProfile,
+        deleteUserProfile,
         triggerSync,
         resetToSampleData,
         deleteDemoData,
