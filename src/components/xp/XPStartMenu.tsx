@@ -184,14 +184,6 @@ export const XPStartMenu: React.FC<XPStartMenuProps> = ({
               <span className="text-xs font-medium truncate">{t('navBackup')}</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => handleNav('androidGuide')}
-              className="w-full flex items-center gap-2 p-2 rounded hover:bg-[#2F71CD] hover:text-white text-left transition-colors cursor-pointer"
-            >
-              <XPIcon name="android" size={20} />
-              <span className="text-xs font-medium truncate">{t('navAndroidBuild')}</span>
-            </button>
 
             <button
               type="button"

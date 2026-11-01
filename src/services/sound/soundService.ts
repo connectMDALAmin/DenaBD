@@ -8,6 +8,7 @@
 
 class SoundService {
   private enabled: boolean = true;
+  private volume: number = 0.8;
   private audioCache: Map<string, HTMLAudioElement> = new Map();
   private audioCtx: AudioContext | null = null;
   private isInitialized: boolean = false;
@@ -17,6 +18,14 @@ class SoundService {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('denapawna_sound_enabled');
       this.enabled = stored !== null ? stored === 'true' : true;
+
+      const storedVol = localStorage.getItem('denapawna_volume');
+      if (storedVol !== null) {
+        const parsed = parseFloat(storedVol);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+          this.volume = parsed;
+        }
+      }
 
       // Preload audio files
       this.preloadSound('logon', '/sounds/xp_logon.wav');
@@ -80,11 +89,29 @@ class SoundService {
     return next;
   }
 
+  public getVolume(): number {
+    return this.volume;
+  }
+
+  public setVolume(v: number): void {
+    const clamped = Math.max(0, Math.min(1, v));
+    this.volume = clamped;
+    try {
+      localStorage.setItem('denapawna_volume', String(clamped));
+    } catch {
+      // ignore
+    }
+    // Update cached audio elements
+    this.audioCache.forEach((audio) => {
+      audio.volume = clamped;
+    });
+  }
+
   /**
    * Play Windows XP Logon Sound
    */
   public async playLogon(): Promise<void> {
-    if (!this.enabled) return;
+    if (!this.enabled || this.volume <= 0) return;
     this.initAudioContext();
     try {
       let audio = this.audioCache.get('logon');
@@ -93,7 +120,7 @@ class SoundService {
         this.audioCache.set('logon', audio);
       }
       audio.currentTime = 0;
-      audio.volume = 0.85;
+      audio.volume = this.volume;
       await audio.play();
     } catch (err) {
       console.warn('Could not play XP logon sound (autoplay restrictions may apply):', err);
@@ -104,7 +131,7 @@ class SoundService {
    * Play Windows XP Logoff Sound
    */
   public async playLogoff(): Promise<void> {
-    if (!this.enabled) return;
+    if (!this.enabled || this.volume <= 0) return;
     this.initAudioContext();
     try {
       let audio = this.audioCache.get('logoff');
@@ -113,7 +140,7 @@ class SoundService {
         this.audioCache.set('logoff', audio);
       }
       audio.currentTime = 0;
-      audio.volume = 0.85;
+      audio.volume = this.volume;
       await audio.play();
     } catch (err) {
       console.warn('Could not play XP logoff sound:', err);
@@ -125,7 +152,7 @@ class SoundService {
    * Emits a crisp, authentic mechanical tick with zero latency.
    */
   public playClick(): void {
-    if (!this.enabled) return;
+    if (!this.enabled || this.volume <= 0) return;
 
     // Debounce rapid repeat clicks (< 60ms)
     const now = Date.now();
@@ -144,11 +171,11 @@ class SoundService {
       const audio = this.audioCache.get('click');
       if (audio) {
         audio.currentTime = 0;
-        audio.volume = 0.6;
+        audio.volume = this.volume;
         audio.play().catch(() => {});
       } else {
         const fallback = new Audio('/sounds/xp_click.wav');
-        fallback.volume = 0.6;
+        fallback.volume = this.volume;
         fallback.play().catch(() => {});
       }
     } catch {
@@ -186,7 +213,7 @@ class SoundService {
       osc.frequency.exponentialRampToValueAtTime(300, t + 0.035);
 
       gain.gain.setValueAtTime(0.001, t);
-      gain.gain.linearRampToValueAtTime(0.25, t + 0.002);
+      gain.gain.linearRampToValueAtTime(0.25 * this.volume, t + 0.002);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
 
       osc.connect(filter);

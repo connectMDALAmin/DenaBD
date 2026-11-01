@@ -177,8 +177,23 @@ export const XPWindow: React.FC<XPWindowProps> = ({
           }
         >
           <span>🌐</span>
-          <span>Language: {language === 'bn' ? 'বাংলা' : 'English'}</span>
+          <span>{language === 'bn' ? 'বাংলা' : 'English'}</span>
         </button>
+
+        {/* Menu Bar Scrolling Ads / Announcement Ticker */}
+        <div className="flex-1 min-w-0 h-[22px] bg-white border border-[#7F9DB9] xp-bevel-inset rounded-xs px-2 flex items-center overflow-hidden ml-1">
+          <span className="shrink-0 text-[10px] font-bold text-[#A91B0D] bg-[#FDE8E8] px-1 py-0.2 rounded-2xs border border-[#F8B4B4] mr-2 flex items-center gap-1 select-none">
+            <span className="animate-pulse">📢</span>
+            <span>{language === 'bn' ? 'বিজ্ঞাপন' : 'Ads'}</span>
+          </span>
+          <div className="relative w-full overflow-hidden whitespace-nowrap">
+            <span className="xp-marquee-text text-[11px] text-[#003399] font-medium cursor-default">
+              {language === 'bn'
+                ? '⭐ দেনাপাওনা ডিজিটাল লেজার — নিরাপদ স্বয়ংক্রিয় ক্লাউড ব্যাকআপ • বাকির খাতা ও দেনা-পাওনা ট্র্যাকিং • ১-ক্লিক মোবাইল স্টেটমেন্ট পোর্টাল | আপনার ব্যবসার হিসাব রাখুন ১০০% নিরাপদ ও নির্ভুলভাবে!'
+                : '⭐ DenaPawna Digital Ledger — 100% Secure Auto Cloud Sync • Smart Khata & Debt Tracking • 1-Click Mobile Statement Portal | Keep your business transactions accurate and safe!'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Main Window Client Area with Inset Bevel */}

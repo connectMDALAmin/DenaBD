@@ -48,9 +48,18 @@ export const PublicLookupView: React.FC = () => {
 
     setAttempts((prev) => prev + 1);
 
-    // Normalize phone
+    // Normalize phone and token
     const cleanPhone = phoneInput.replace(/[^0-9]/g, '');
     const cleanToken = tokenInput.trim();
+
+    if (!cleanToken) {
+      setErrorMessage(
+        language === 'bn'
+          ? 'অ্যাক্সেস টোকেন / গোপন পিন নম্বর দেওয়া বাধ্যতামূলক।'
+          : 'Access token / PIN is strictly mandatory.'
+      );
+      return;
+    }
 
     // 1. Try querying Firestore live public statements collection
     const firestoreResult = await firebaseSync.queryPublicStatementByPhone(phoneInput);

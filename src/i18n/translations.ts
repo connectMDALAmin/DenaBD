@@ -7,8 +7,8 @@ export type Language = 'bn' | 'en';
 export const translations = {
   bn: {
     // Brand & App
-    appName: 'দেনাপাওনা',
-    appTagline: 'আধুনিক উইন্ডোজ এক্সপি ডিজিটাল খাতা ও হিসাবরক্ষণ',
+    appName: 'দেনাপাওনা ডিজিটাল লেজার',
+    appTagline: 'নিরাপদ উইন্ডোজ এক্সপি ডিজিটাল খাতা ও হিসাবরক্ষণ',
     startMenu: 'শুরু',
     desktop: 'ডেস্কটপ',
     version: 'সংস্করণ ২.৪',
@@ -168,8 +168,8 @@ export const translations = {
 
   en: {
     // Brand & App
-    appName: 'DenaPawna',
-    appTagline: 'Modern Windows XP Digital Ledger & Financial Khata',
+    appName: 'DenaPawna Digital Ledger',
+    appTagline: 'Windows XP Authentic Digital Ledger & Smart Khata',
     startMenu: 'start',
     desktop: 'Desktop',
     version: 'v2.4 Pro',

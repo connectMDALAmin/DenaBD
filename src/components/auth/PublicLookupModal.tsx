@@ -54,6 +54,16 @@ export const PublicLookupModal: React.FC<PublicLookupModalProps> = ({ isOpen, on
         return;
       }
 
+      if (!cleanToken) {
+        setErrorMessage(
+          language === 'bn'
+            ? 'অ্যাক্সেস টোকেন / পিন দেওয়া বাধ্যতামূলক।'
+            : 'Access token / PIN is mandatory.'
+        );
+        setIsSearching(false);
+        return;
+      }
+
       // 1. Try Firestore cloud public statements
       const cloudResult = await firebaseSync.queryPublicStatementByPhone(phoneInput);
       if (cloudResult) {
@@ -75,7 +85,7 @@ export const PublicLookupModal: React.FC<PublicLookupModalProps> = ({ isOpen, on
         if (!c.publicLookupEnabled) return false;
         const cCleanPhone = c.phone.replace(/[^0-9]/g, '');
         const phoneMatches = cCleanPhone.endsWith(cleanPhone) || cleanPhone.endsWith(cCleanPhone);
-        const tokenMatches = !cleanToken || (c.publicAccessToken && c.publicAccessToken.trim() === cleanToken);
+        const tokenMatches = Boolean(c.publicAccessToken && c.publicAccessToken.trim() === cleanToken);
         return phoneMatches && tokenMatches;
       });
 
@@ -183,11 +193,12 @@ export const PublicLookupModal: React.FC<PublicLookupModalProps> = ({ isOpen, on
 
             <div className="space-y-1">
               <label className="block text-gray-700 font-semibold text-xs flex items-center gap-1">
-                <Lock size={13} className="text-gray-500" />
-                <span>{language === 'bn' ? 'নিরাপত্তা পিন / টোকেন (ঐচ্ছিক):' : 'Security Token (Optional):'}</span>
+                <Lock size={13} className="text-[#0055EA]" />
+                <span>{language === 'bn' ? 'নিরাপত্তা পিন / টোকেন * (বাধ্যতামূলক):' : 'Security Token / PIN * (Mandatory):'}</span>
               </label>
               <input
                 type="text"
+                required
                 value={tokenInput}
                 onChange={(e) => setTokenInput(e.target.value)}
                 placeholder="1234"

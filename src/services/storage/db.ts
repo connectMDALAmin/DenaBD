@@ -154,14 +154,31 @@ class DatabaseService {
   // --- User Profile ---
   public getUserProfile(): UserProfile {
     const raw = safeStorage.getItem(this.getUserKey());
-    if (!raw) {
-      return initialUserProfile;
+    let profile = initialUserProfile;
+    if (raw) {
+      try {
+        profile = { ...initialUserProfile, ...JSON.parse(raw) };
+      } catch {
+        profile = initialUserProfile;
+      }
     }
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return initialUserProfile;
+    // Clean legacy placeholder defaults if present
+    if (
+      profile.businessName === 'ভাই ভাই জেনারেল ট্রেডার্স (Bhai Bhai Traders)' ||
+      !profile.businessName
+    ) {
+      profile.businessName = 'আমার ব্যবসা';
     }
+    if (
+      profile.phone === '+8801712345678' ||
+      profile.phone === '+880 1700-000000'
+    ) {
+      profile.phone = '';
+    }
+    if (profile.ownerName === 'মোঃ রফিকুল ইসলাম (Rafiqul Islam)') {
+      profile.ownerName = 'ব্যবহারকারী';
+    }
+    return profile;
   }
 
   public saveUserProfile(profile: Partial<UserProfile>): UserProfile {

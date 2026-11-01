@@ -17,6 +17,7 @@ interface XPIconProps {
     | 'shield'
     | 'print'
     | 'help'
+    | 'browser'
     | 'sync';
   className?: string;
   size?: number;
@@ -159,6 +160,15 @@ export const XPIcon: React.FC<XPIconProps> = ({ name, className = '', size = 24 
           <circle cx="16" cy="16" r="13" fill="#42A5F5" stroke="#1565C0" strokeWidth="1.5" />
           <circle cx="16" cy="12" r="5" fill="#FFFFFF" />
           <path d="M8 25C8 20.5 11.5 19 16 19C20.5 19 24 20.5 24 25" fill="#FFFFFF" />
+        </svg>
+      );
+
+    case 'browser':
+      return (
+        <svg width={size} height={size} viewBox="0 0 32 32" fill="none" className={className}>
+          <circle cx="16" cy="16" r="13" fill="#0066CC" stroke="#004C99" strokeWidth="1.2" />
+          <ellipse cx="16" cy="16" rx="14" ry="5" stroke="#FFCC00" strokeWidth="2.5" transform="rotate(-25 16 16)" />
+          <text x="16" y="22" fontSize="18" fontWeight="bold" fontFamily="sans-serif" fontStyle="italic" fill="#FFFFFF" textAnchor="middle">e</text>
         </svg>
       );
 

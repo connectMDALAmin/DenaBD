@@ -49,6 +49,9 @@ export function toBanglaDigits(num: number | string): string {
 
 /**
  * Calculates receivable and payable balances for a specific contact
+ * using net double-entry accounting logic.
+ * Positive net = Contact owes user (Receivable / পাওনা)
+ * Negative net = User owes contact (Payable / দেনা)
  */
 export function calculateContactBalance(
   contact: Contact,
@@ -59,71 +62,82 @@ export function calculateContactBalance(
     (t) => t.contactId === contact.id && t.status === 'active'
   );
 
-  // Initial balances from contact opening balance
-  let receivable = 0;
-  let payable = 0;
-
-  if (contact.openingBalance > 0) {
-    receivable += contact.openingBalance;
-  } else if (contact.openingBalance < 0) {
-    payable += Math.abs(contact.openingBalance);
-  }
-
-  let overdueAmount = 0;
+  // Net algebraic balance initialized with openingBalance
+  // positive = they owe us (receivable), negative = we owe them (payable)
+  let net = contact.openingBalance || 0;
   let lastTransactionDate: string | undefined = undefined;
 
   // Process all active transactions sorted by date
-  contactTxs.forEach((tx) => {
+  const sortedTxs = [...contactTxs].sort((a, b) => a.date.localeCompare(b.date));
+
+  sortedTxs.forEach((tx) => {
     if (!lastTransactionDate || tx.date > lastTransactionDate) {
       lastTransactionDate = tx.date;
     }
 
     switch (tx.type) {
       case 'given':
-        // User gave money to contact -> Contact owes user (Receivable increases)
-        receivable += tx.amount;
-        if (tx.dueDate && tx.dueDate < currentDate) {
-          overdueAmount += tx.amount;
-        }
+        // User gave money/credit to contact -> increases what contact owes user
+        net += tx.amount;
         break;
 
       case 'received':
-        // User received money from contact -> Contact debt reduced
-        receivable = Math.max(0, receivable - tx.amount);
+        // User received money from contact -> reduces what contact owes user (or becomes advance)
+        net -= tx.amount;
         break;
 
       case 'borrowed':
-        // User borrowed money from contact -> User owes contact (Payable increases)
-        payable += tx.amount;
+        // User borrowed money or took goods on credit from contact -> increases what user owes contact
+        net -= tx.amount;
         break;
 
       case 'repaid':
-        // User repaid money to contact -> User payable reduced
-        payable = Math.max(0, payable - tx.amount);
+        // User repaid money to contact -> reduces what user owes contact (or becomes advance)
+        net += tx.amount;
         break;
-    }
-
-    // Check overdue installments if present
-    if (tx.installments && tx.installments.length > 0) {
-      tx.installments.forEach((inst) => {
-        if (inst.dueDate < currentDate && inst.status !== 'paid') {
-          const remaining = inst.amount - (inst.paidAmount || 0);
-          if (remaining > 0) {
-            overdueAmount = Math.max(overdueAmount, remaining);
-          }
-        }
-      });
     }
   });
 
-  const netBalance = receivable - payable;
+  // Calculate receivable and payable from final net position
+  let receivable = 0;
+  let payable = 0;
+
+  if (net > 0) {
+    receivable = net;
+    payable = 0;
+  } else if (net < 0) {
+    receivable = 0;
+    payable = Math.abs(net);
+  }
+
+  // Calculate overdue amounts if customer owes user
+  let overdueAmount = 0;
+  if (receivable > 0) {
+    sortedTxs.forEach((tx) => {
+      if (tx.installments && tx.installments.length > 0) {
+        tx.installments.forEach((inst) => {
+          if (inst.dueDate < currentDate && inst.status !== 'paid') {
+            const remaining = inst.amount - (inst.paidAmount || 0);
+            if (remaining > 0) {
+              overdueAmount += remaining;
+            }
+          }
+        });
+      } else if (tx.type === 'given' && tx.dueDate && tx.dueDate < currentDate) {
+        overdueAmount += tx.amount;
+      }
+    });
+    // Cap overdue at current total receivable
+    overdueAmount = Math.min(overdueAmount, receivable);
+  }
+
   const isOverdue = overdueAmount > 0 && receivable > 0;
 
   return {
     contact,
     receivable,
     payable,
-    netBalance,
+    netBalance: net,
     transactionCount: contactTxs.length,
     lastTransactionDate,
     overdueAmount,

@@ -238,25 +238,13 @@ describe('Backup Validation & Integrity', () => {
     expect(summary.isOverdue).toBe(false);
   });
 
-  it('correctly identifies and performs one-click deletion of demo data', async () => {
+  it('correctly ensures clean ledger with zero demo data by default', async () => {
     const { db } = await import('../src/services/storage/db');
-    // Ensure initial sample data is populated
     db.resetToSampleData();
-    const initialCounts = db.getDemoDataCounts();
-    expect(initialCounts.contactsCount).toBeGreaterThan(0);
-    expect(initialCounts.transactionsCount).toBeGreaterThan(0);
-
-    // Perform one-click delete
-    const result = db.deleteDemoData();
-    expect(result.deletedContacts).toBe(initialCounts.contactsCount);
-    expect(result.deletedTransactions).toBe(initialCounts.transactionsCount);
-
-    // After deletion, demo count must be 0
-    const postCounts = db.getDemoDataCounts();
-    expect(postCounts.contactsCount).toBe(0);
-    expect(postCounts.transactionsCount).toBe(0);
-
-    // Reset back for test consistency
-    db.resetToSampleData();
+    const counts = db.getDemoDataCounts();
+    expect(counts.contactsCount).toBe(0);
+    expect(counts.transactionsCount).toBe(0);
+    expect(db.getContacts().length).toBe(0);
+    expect(db.getTransactions().length).toBe(0);
   });
 });

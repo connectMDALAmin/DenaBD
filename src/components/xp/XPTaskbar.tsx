@@ -27,11 +27,15 @@ const TABS: TabItem[] = [
 interface XPTaskbarProps {
   onOpenDeveloperInfo?: () => void;
   onOpenLogOff?: () => void;
+  isAppMinimized?: boolean;
+  onToggleMinimize?: () => void;
 }
 
 export const XPTaskbar: React.FC<XPTaskbarProps> = ({
   onOpenDeveloperInfo,
   onOpenLogOff,
+  isAppMinimized = false,
+  onToggleMinimize,
 }) => {
   const { activeTab, setActiveTab, syncState, triggerSync, lastSyncTime, isAdmin, firebaseUser } = useApp();
   const { t, language } = useI18n();
@@ -39,6 +43,8 @@ export const XPTaskbar: React.FC<XPTaskbarProps> = ({
   const [timeStr, setTimeStr] = useState<string>('');
   const [dateStr, setDateStr] = useState<string>('');
   const [isMuted, setIsMuted] = useState<boolean>(() => !soundService.isSoundEnabled());
+  const [volumeLevel, setVolumeLevel] = useState<number>(() => Math.round(soundService.getVolume() * 100));
+  const [volumePopupOpen, setVolumePopupOpen] = useState<boolean>(false);
 
   // Live Date & Time formatted for Asia/Dhaka timezone
   useEffect(() => {
@@ -67,14 +73,24 @@ export const XPTaskbar: React.FC<XPTaskbarProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  const handleToggleVolume = () => {
+  const handleToggleVolumePopup = () => {
+    setVolumePopupOpen((prev) => !prev);
+    soundService.playClick();
+  };
+
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value, 10);
+    setVolumeLevel(val);
+    soundService.setVolume(val / 100);
+    if (val > 0 && isMuted) {
+      soundService.setSoundEnabled(true);
+      setIsMuted(false);
+    }
+  };
+
+  const handleToggleMuteCheckbox = () => {
     const nextMuted = soundService.toggleSound();
     setIsMuted(!nextMuted);
-    try {
-      localStorage.setItem('xp_audio_muted', String(!nextMuted));
-    } catch {
-      // Safe fallback
-    }
   };
 
   // Only the currently active application window is shown on the taskbar
@@ -99,6 +115,73 @@ export const XPTaskbar: React.FC<XPTaskbarProps> = ({
         onOpenLogOff={onOpenLogOff}
       />
 
+      {/* Volume Control XP Popup Dialog */}
+      {volumePopupOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-transparent"
+            onClick={() => setVolumePopupOpen(false)}
+          />
+          <div
+            className="fixed bottom-[34px] right-6 w-48 bg-[#ECE9D8] border-2 border-[#0055EA] rounded-[3px] shadow-2xl p-2 z-50 text-gray-900 select-none animate-in fade-in duration-75 xp-bevel-outset font-sans"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Titlebar */}
+            <div className="flex items-center justify-between px-1.5 py-0.5 bg-gradient-to-r from-[#0055EA] to-[#3A80F2] text-white text-[11px] font-bold rounded-xs mb-2">
+              <span>{language === 'bn' ? 'ভলিউম কন্ট্রোল' : 'Volume Control'}</span>
+              <button
+                type="button"
+                onClick={() => setVolumePopupOpen(false)}
+                className="w-3.5 h-3.5 bg-[#D83B01] hover:bg-[#B32E00] text-white rounded-2xs flex items-center justify-center text-[10px] leading-none cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Master Volume Slider */}
+            <div className="flex flex-col items-center gap-1.5 px-2.5 py-2 bg-white border border-[#7F9DB9] xp-bevel-inset rounded-xs">
+              <div className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">
+                Master Volume
+              </div>
+              <div className="flex items-center justify-between w-full text-[9px] text-gray-500 font-mono">
+                <span>0%</span>
+                <span className="font-bold text-blue-700">{isMuted ? 'Muted' : `${volumeLevel}%`}</span>
+                <span>100%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={isMuted ? 0 : volumeLevel}
+                onChange={handleSliderChange}
+                className="w-full accent-[#0055EA] cursor-pointer"
+              />
+              <div className="w-full flex items-center justify-between pt-1.5 border-t border-gray-200 mt-1">
+                <label className="flex items-center gap-1.5 text-[11px] cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isMuted}
+                    onChange={handleToggleMuteCheckbox}
+                    className="accent-[#0055EA] cursor-pointer"
+                  />
+                  <span className="font-semibold text-gray-800">
+                    {language === 'bn' ? 'মিউট (Mute)' : 'Mute'}
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => soundService.playClick()}
+                  title="Test sound click"
+                  className="text-[10px] text-blue-700 hover:underline cursor-pointer font-medium"
+                >
+                  {language === 'bn' ? 'সাউন্ড টেস্ট' : 'Test'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       <footer className="fixed bottom-0 left-0 right-0 h-[32px] xp-taskbar z-50 flex items-center justify-between select-none shadow-lg border-t border-[#3169DB]">
         {/* Left: Start Button & Quick Launch */}
         <div className="flex items-center h-full">
@@ -118,49 +201,25 @@ export const XPTaskbar: React.FC<XPTaskbarProps> = ({
             <span className="tracking-wide">{t('startMenu')}</span>
           </button>
 
-          {/* Quick Launch separator and icons */}
-          <div className="hidden md:flex items-center gap-1 px-2 border-r border-[#1941A5]/60 h-[22px]">
+          {/* Quick Launch: ONLY Show Desktop / Overview */}
+          <div className="flex items-center px-2 border-r border-[#1941A5]/60 h-[22px]">
             <button
               type="button"
-              onClick={() => setActiveTab('dashboard')}
-              title="Show Desktop / Overview"
-              className="p-1 hover:bg-white/20 rounded cursor-pointer transition"
+              onClick={() => {
+                onToggleMinimize?.();
+                soundService.playClick();
+              }}
+              title={
+                isAppMinimized
+                  ? (language === 'bn' ? 'উইন্ডো ফিরিয়ে আনুন (Restore Window)' : 'Restore Window')
+                  : (language === 'bn' ? 'ডেস্কটপ ও সার্বিক চিত্র প্রদর্শন (Show Desktop / Overview)' : 'Show Desktop / Overview')
+              }
+              className="p-1 hover:bg-white/20 active:bg-black/30 rounded cursor-pointer transition flex items-center justify-center text-white"
             >
-              <XPIcon name="ledger" size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('ledger')}
-              title="Ledger"
-              className="p-1 hover:bg-white/20 rounded cursor-pointer transition"
-            >
-              <XPIcon name="money" size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => triggerSync()}
-              title="Sync Now"
-              className="p-1 hover:bg-white/20 rounded cursor-pointer transition"
-            >
-              <RefreshCw size={13} className="text-white" />
-            </button>
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('admin')}
-                title="Admin Control Panel"
-                className="p-1 hover:bg-white/20 rounded cursor-pointer transition text-amber-300"
-              >
-                <Shield size={14} />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => onOpenDeveloperInfo?.()}
-              title={language === 'bn' ? 'ডেভেলপার পরিচিতি' : 'Developer Info'}
-              className="px-1 py-0.5 hover:bg-white/20 rounded cursor-pointer transition text-xs"
-            >
-              👨‍💻
+              {/* Authentic Windows XP Show Desktop Icon: blue blotter / desk */}
+              <div className="w-4 h-4 bg-gradient-to-b from-[#2A74E8] to-[#124294] border border-[#B3D4FF] rounded-[2px] flex items-center justify-center shadow-xs">
+                <div className="w-2.5 h-2 bg-[#FEEB83] border border-[#8C6D1F] rounded-[1px] shadow-2xs" />
+              </div>
             </button>
           </div>
 
@@ -169,8 +228,16 @@ export const XPTaskbar: React.FC<XPTaskbarProps> = ({
             {activeTabItem && (
               <button
                 type="button"
-                className="h-[24px] px-3 max-w-[220px] truncate rounded-[2px] flex items-center gap-1.5 text-[11px] font-semibold transition cursor-pointer select-none bg-[#1E52B7] text-white shadow-[inset_1px_1px_2px_rgba(0,0,0,0.6)] border border-[#113888]"
-                title={activeTabItem.label}
+                onClick={() => {
+                  onToggleMinimize?.();
+                  soundService.playClick();
+                }}
+                className={`h-[24px] px-3 max-w-[220px] truncate rounded-[2px] flex items-center gap-1.5 text-[11px] font-semibold transition cursor-pointer select-none ${
+                  isAppMinimized
+                    ? 'bg-[#2A6CEB] hover:bg-[#3B7BF2] text-white/90 border border-[#1752D8]'
+                    : 'bg-[#1E52B7] text-white shadow-[inset_1px_1px_2px_rgba(0,0,0,0.6)] border border-[#113888]'
+                }`}
+                title={`${activeTabItem.label} — ${isAppMinimized ? 'Click to restore' : 'Click to minimize'}`}
               >
                 <XPIcon name={activeTabItem.icon} size={14} className="shrink-0" />
                 <span className="truncate">{activeTabItem.label}</span>
@@ -207,20 +274,20 @@ export const XPTaskbar: React.FC<XPTaskbarProps> = ({
             </span>
           </button>
 
-          {/* Functional Volume Control Button (Toggles mute/unmute with visual icon & state) */}
+          {/* Volume Control Button: Opens Master Volume Slider Popup */}
           <button
             type="button"
-            onClick={handleToggleVolume}
+            onClick={handleToggleVolumePopup}
             title={
               isMuted
                 ? language === 'bn'
-                  ? 'ভলিউম বন্ধ (মিউট) — ক্লিক করে আনমিউট করুন'
-                  : 'Volume Muted (Click to unmute)'
+                  ? 'ভলিউম বন্ধ (মিউট) — ভলিউম স্লাইডার খুলতে ক্লিক করুন'
+                  : 'Volume Muted — Click to open Volume Slider'
                 : language === 'bn'
-                  ? 'ভলিউম চালু — ক্লিক করে মিউট করুন'
-                  : 'Volume Active (Click to mute)'
+                  ? `ভলিউম: ${volumeLevel}% — ভলিউম স্লাইডার খুলতে ক্লিক করুন`
+                  : `Volume: ${volumeLevel}% — Click to open Volume Slider`
             }
-            aria-label={isMuted ? 'Unmute volume' : 'Mute volume'}
+            aria-label="Volume Control"
             className={`p-1 rounded cursor-pointer transition flex items-center justify-center ${
               isMuted
                 ? 'bg-red-900/60 text-red-200 border border-red-400/50 hover:bg-red-800/80 shadow-inner'

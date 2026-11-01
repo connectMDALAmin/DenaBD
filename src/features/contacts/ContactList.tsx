@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Contact, ContactCategory } from '../../types/accounting';
 import { useApp } from '../../context/AppContext';
 import { useI18n } from '../../i18n/I18nContext';
 import { calculateContactBalance, formatCurrency } from '../../services/accounting/calculator';
-import { UserPlus, Search, Filter, Phone, ArrowRight, AlertCircle, FileSpreadsheet } from 'lucide-react';
-import { exportContactsToCsv } from '../../services/export/csvExport';
+import { UserPlus, Search, Filter, Phone, ArrowRight, AlertCircle, FileSpreadsheet, Upload, Download, CheckCircle2 } from 'lucide-react';
+import { exportContactsToCsv, exportContactsToJson, parseContactsFromFile } from '../../services/export/csvExport';
 import { XPIcon } from '../../components/xp/XPIcon';
+import { soundService } from '../../services/sound/soundService';
 
 interface ContactListProps {
   onSelectContact: (contactId: string) => void;
@@ -20,11 +21,13 @@ export const ContactList: React.FC<ContactListProps> = ({
   onEditContact,
   onAddTransaction,
 }) => {
-  const { contacts, transactions } = useApp();
+  const { contacts, transactions, saveContact } = useApp();
   const { t, language } = useI18n();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [uploadMessage, setUploadMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Filter contacts by query and category
   const filteredContacts = contacts.filter((c) => {
@@ -41,14 +44,86 @@ export const ContactList: React.FC<ContactListProps> = ({
   });
 
   const handleExportCsv = () => {
+    soundService.playClick();
     exportContactsToCsv(contacts);
+  };
+
+  const handleExportJson = () => {
+    soundService.playClick();
+    exportContactsToJson(contacts);
+  };
+
+  const handleTriggerUpload = () => {
+    soundService.playClick();
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = parseContactsFromFile(text, file.name);
+        if (parsed.length === 0) {
+          setUploadMessage({
+            type: 'error',
+            text: language === 'bn' ? 'ফাইল থেকে কোনো কন্ট্যাক্ট পড়া যায়নি। অনুগ্রহ করে CSV বা JSON ফরম্যাট নিশ্চিত করুন।' : 'No contacts found in file. Ensure valid CSV or JSON format.',
+          });
+          return;
+        }
+
+        let addedCount = 0;
+        parsed.forEach((c) => {
+          saveContact(c);
+          addedCount++;
+        });
+
+        soundService.playClick();
+        setUploadMessage({
+          type: 'success',
+          text: language === 'bn' ? `সফলভাবে ${addedCount} টি কন্ট্যাক্ট আপলোড করা হয়েছে!` : `Successfully uploaded ${addedCount} contacts!`,
+        });
+
+        setTimeout(() => setUploadMessage(null), 5000);
+      } catch (err) {
+        setUploadMessage({
+          type: 'error',
+          text: language === 'bn' ? 'ফাইল প্রসেসিং এ ত্রুটি হয়েছে।' : 'Error parsing uploaded file.',
+        });
+      }
+    };
+    reader.readAsText(file);
+    // Reset input
+    e.target.value = '';
   };
 
   return (
     <div className="space-y-4">
+      {/* Upload Notification Message */}
+      {uploadMessage && (
+        <div
+          className={`p-2.5 rounded text-xs flex items-center gap-2 border animate-in fade-in duration-150 ${
+            uploadMessage.type === 'success'
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+              : 'bg-red-50 border-red-300 text-red-800'
+          }`}
+        >
+          {uploadMessage.type === 'success' ? (
+            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+          ) : (
+            <AlertCircle size={16} className="text-red-600 shrink-0" />
+          )}
+          <span className="font-semibold">{uploadMessage.text}</span>
+        </div>
+      )}
+
       {/* Action Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-[#ECE9D8] border border-[#7F9DB9] rounded-[4px] xp-bevel-outset">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          {/* Add Contact */}
           <button
             type="button"
             onClick={onOpenNewContact}
@@ -58,13 +133,44 @@ export const ContactList: React.FC<ContactListProps> = ({
             <span>{t('addContact')}</span>
           </button>
 
+          {/* Upload Contacts (CSV / JSON) */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.json,text/csv,application/json"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={handleTriggerUpload}
+            title={language === 'bn' ? 'CSV বা JSON ফাইল থেকে কন্ট্যাক্ট আপলোড করুন' : 'Upload contacts from CSV or JSON file'}
+            className="xp-button px-2.5 py-1.5 flex items-center gap-1.5 text-xs text-blue-900 font-semibold cursor-pointer"
+          >
+            <Upload size={14} className="text-blue-700" />
+            <span>{language === 'bn' ? 'কন্ট্যাক্ট আপলোড' : 'Upload Contacts'}</span>
+          </button>
+
+          {/* Export CSV */}
           <button
             type="button"
             onClick={handleExportCsv}
-            className="xp-button px-3 py-1.5 flex items-center gap-1.5 text-xs text-gray-800 cursor-pointer"
+            title="Export contacts to CSV"
+            className="xp-button px-2.5 py-1.5 flex items-center gap-1.5 text-xs text-gray-800 cursor-pointer"
           >
-            <FileSpreadsheet size={15} className="text-green-700" />
-            <span>{t('exportCSV')}</span>
+            <FileSpreadsheet size={14} className="text-green-700" />
+            <span>{language === 'bn' ? 'এক্সপোর্ট CSV' : 'Export CSV'}</span>
+          </button>
+
+          {/* Export JSON */}
+          <button
+            type="button"
+            onClick={handleExportJson}
+            title="Export contacts to JSON"
+            className="xp-button px-2 py-1.5 flex items-center gap-1 text-xs text-gray-700 cursor-pointer"
+          >
+            <Download size={13} className="text-amber-700" />
+            <span>JSON</span>
           </button>
         </div>
 
