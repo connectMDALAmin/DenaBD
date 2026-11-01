@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Contact, Transaction, UserProfile, LedgerSummary } from '../types/accounting';
 import { db, SyncState } from '../services/storage/db';
 import { calculateLedgerSummary } from '../services/accounting/calculator';
-import { firebaseSync, AppUser } from '../services/firebase/firebaseSync';
+import { firebaseSync, AppUser, AppSettings } from '../services/firebase/firebaseSync';
 import { soundService } from '../services/sound/soundService';
 
 export type ActiveTab =
@@ -40,12 +40,17 @@ interface AppContextType {
   sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   resetPin: () => void;
+  // App Settings & Maintenance
+  appSettings: AppSettings;
+  updateAppSettings: (settings: Partial<AppSettings>) => Promise<void>;
   // Actions
   saveContact: (contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Contact;
   deleteContact: (id: string) => boolean;
+  deleteAllContacts: () => Promise<{ deletedCount: number }>;
   saveTransaction: (tx: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Transaction;
   cancelTransaction: (id: string) => boolean;
   deleteTransaction: (id: string) => boolean;
+  deleteAllTransactions: () => Promise<{ deletedCount: number }>;
   saveUserProfile: (profile: Partial<UserProfile>) => UserProfile;
   triggerSync: () => Promise<void>;
   resetToSampleData: () => void;
@@ -84,6 +89,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [firebaseUser, setFirebaseUser] = useState<AppUser | null>(() => firebaseSync.getCurrentUser());
   const [isAuthReady, setIsAuthReady] = useState<boolean>(() => firebaseSync.getIsAuthReady());
   const [isAdmin, setIsAdmin] = useState<boolean>(() => firebaseSync.getIsAdmin());
+  const [appSettings, setAppSettings] = useState<AppSettings>(() => firebaseSync.getAppSettingsSync());
 
   // Modal dialog states
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -114,14 +120,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsAdmin(admin);
     });
 
+    const unsubscribeSettings = firebaseSync.subscribeAppSettings((s) => {
+      setAppSettings(s);
+    });
+
     return () => {
       unsubscribeDb();
       unsubscribeSync();
       unsubscribeAuth();
+      unsubscribeSettings();
     };
   }, []);
 
   const ledgerSummary = calculateLedgerSummary(contacts, transactions);
+
+  const updateAppSettings = async (settings: Partial<AppSettings>) => {
+    await firebaseSync.saveAppSettings(settings);
+  };
 
   const saveContact = (contact: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const saved = db.saveContact(contact);
@@ -131,6 +146,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteContact = (id: string) => {
     return db.deleteContact(id);
+  };
+
+  const deleteAllContacts = async (): Promise<{ deletedCount: number }> => {
+    const res = db.deleteAllContacts();
+    await firebaseSync.deleteAllContactsFromCloud();
+    return { deletedCount: res.deletedCount };
   };
 
   const saveTransaction = (tx: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
@@ -145,6 +166,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteTransaction = (id: string) => {
     return db.deleteTransaction(id);
+  };
+
+  const deleteAllTransactions = async (): Promise<{ deletedCount: number }> => {
+    const res = db.deleteAllTransactions();
+    await firebaseSync.deleteAllTransactionsFromCloud();
+    return { deletedCount: res.deletedCount };
   };
 
   const saveUserProfile = (profile: Partial<UserProfile>) => {
@@ -215,11 +242,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sendPasswordReset,
         logout,
         resetPin,
+        appSettings,
+        updateAppSettings,
         saveContact,
         deleteContact,
+        deleteAllContacts,
         saveTransaction,
         cancelTransaction,
         deleteTransaction,
+        deleteAllTransactions,
         saveUserProfile,
         triggerSync,
         resetToSampleData,

@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useI18n } from '../../i18n/I18nContext';
 import { hashPin, generateSalt } from '../../services/security/pinService';
-import { Shield, Palette, Store, Globe, Save, CheckCircle, Lock, RefreshCw } from 'lucide-react';
+import { Shield, Palette, Store, Globe, Save, CheckCircle, RefreshCw, Megaphone, Trash2, AlertTriangle } from 'lucide-react';
 import { XPIcon } from '../../components/xp/XPIcon';
+import { DangerConfirmModal } from '../../components/xp/DangerConfirmModal';
+import { soundService } from '../../services/sound/soundService';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -16,8 +18,14 @@ export const SettingsView: React.FC = () => {
     signInWithGoogle,
     logout,
     resetPin,
+    appSettings,
+    updateAppSettings,
+    contacts,
+    transactions,
+    deleteAllContacts,
+    deleteAllTransactions,
   } = useApp();
-  const { t, language, setLanguage } = useI18n();
+  const { t, language } = useI18n();
 
   // Business Profile Form
   const [businessName, setBusinessName] = useState(userProfile.businessName);
@@ -34,10 +42,24 @@ export const SettingsView: React.FC = () => {
   const [confirmPin, setConfirmPin] = useState('');
   const [pinMessage, setPinMessage] = useState<string | null>(null);
 
+  // Global Announcement Banner Form
+  const [announcementBanner, setAnnouncementBanner] = useState(appSettings?.announcementBanner ?? true);
+  const [announcementText, setAnnouncementText] = useState(
+    appSettings?.announcementText ||
+      '⭐ দেনাপাওনা ডিজিটাল লেজার — নিরাপদ স্বয়ংক্রিয় ক্লাউড ব্যাকআপ • বাকির খাতা ও দেনা-পাওনা ট্র্যাকিং • ১-ক্লিক মোবাইল স্টেটমেন্ট পোর্টাল | আপনার ব্যবসার হিসাব রাখুন ১০০% নিরাপদ ও নির্ভুলভাবে!'
+  );
+  const [announcementSaveMsg, setAnnouncementSaveMsg] = useState<string | null>(null);
+
+  // Danger Zone Modals State
+  const [isDeleteContactsModalOpen, setIsDeleteContactsModalOpen] = useState(false);
+  const [isDeleteTxModalOpen, setIsDeleteTxModalOpen] = useState(false);
+  const [dangerActionMsg, setDangerActionMsg] = useState<string | null>(null);
+
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
+    soundService.playClick();
     saveUserProfile({
       businessName,
       ownerName,
@@ -53,6 +75,7 @@ export const SettingsView: React.FC = () => {
 
   const handleUpdatePin = async (e: React.FormEvent) => {
     e.preventDefault();
+    soundService.playClick();
     if (!pinEnabled) {
       saveUserProfile({
         pinEnabled: false,
@@ -88,6 +111,41 @@ export const SettingsView: React.FC = () => {
     setTimeout(() => setPinMessage(null), 3000);
   };
 
+  const handleSaveAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    soundService.playClick();
+    await updateAppSettings({
+      announcementBanner,
+      announcementText: announcementText.trim(),
+    });
+    setAnnouncementSaveMsg(
+      language === 'bn'
+        ? 'বিজ্ঞাপন ও ব্যানার সফলভাবে আপডেট করা হয়েছে!'
+        : 'Announcement banner updated successfully!'
+    );
+    setTimeout(() => setAnnouncementSaveMsg(null), 3500);
+  };
+
+  const handleConfirmDeleteAllContacts = async () => {
+    const res = await deleteAllContacts();
+    setDangerActionMsg(
+      language === 'bn'
+        ? `সকল ${res.deletedCount} টি কন্ট্যাক্ট ও সংশ্লিষ্ট লেনদেন সফলভাবে মুছে ফেলা হয়েছে!`
+        : `All ${res.deletedCount} contacts and linked records were permanently deleted.`
+    );
+    setTimeout(() => setDangerActionMsg(null), 4000);
+  };
+
+  const handleConfirmDeleteAllTransactions = async () => {
+    const res = await deleteAllTransactions();
+    setDangerActionMsg(
+      language === 'bn'
+        ? `সকল ${res.deletedCount} টি লেনদেন ইতিহাস সফলভাবে মুছে ফেলা হয়েছে এবং ব্যালেন্স ০ করা হয়েছে!`
+        : `All ${res.deletedCount} transaction records deleted and ledger balances reset to 0.`
+    );
+    setTimeout(() => setDangerActionMsg(null), 4000);
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-4">
       {/* Top Banner */}
@@ -99,7 +157,7 @@ export const SettingsView: React.FC = () => {
           <div>
             <h2 className="text-sm font-bold text-gray-900">{t('settingsTitle')}</h2>
             <p className="text-xs text-gray-500">
-              Customize business profile, currency, theme, and 4-digit device PIN
+              Customize business profile, advertisement banner, security PIN, and ledger data
             </p>
           </div>
         </div>
@@ -121,7 +179,14 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* Main Form */}
+      {dangerActionMsg && (
+        <div className="p-3 bg-red-50 border border-red-300 rounded text-xs text-red-800 flex items-center gap-2 animate-in fade-in">
+          <AlertTriangle size={16} className="text-red-600 shrink-0" />
+          <span className="font-semibold">{dangerActionMsg}</span>
+        </div>
+      )}
+
+      {/* Main Form: Business Profile & Security PIN */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Business Profile */}
         <form onSubmit={handleSaveProfile} className="bg-white p-4 rounded-[4px] border border-[#7F9DB9] xp-bevel-inset space-y-3 text-xs">
@@ -254,7 +319,7 @@ export const SettingsView: React.FC = () => {
           </div>
         </form>
 
-        {/* Security PIN & Data Safety */}
+        {/* Security PIN & Firebase Cloud Sync */}
         <div className="space-y-4">
           <form onSubmit={handleUpdatePin} className="bg-white p-4 rounded-[4px] border border-[#7F9DB9] xp-bevel-inset space-y-3 text-xs">
             <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
@@ -395,6 +460,214 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Global Announcement Banner Editor */}
+      <form
+        onSubmit={handleSaveAnnouncement}
+        className="bg-white p-4 rounded-[4px] border border-[#7F9DB9] xp-bevel-inset space-y-3 text-xs"
+      >
+        <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+          <div className="flex items-center gap-2">
+            <Megaphone size={16} className="text-[#0055EA]" />
+            <h3 className="font-bold text-gray-900">
+              {language === 'bn' ? 'গ্লোবাল বিজ্ঞাপন ও নোটিশ ব্যানার (Global Announcement Banner)' : 'Global Announcement Banner (Menu Bar Ticker)'}
+            </h3>
+          </div>
+          <span className="text-[11px] text-gray-500 font-medium">
+            {language === 'bn' ? 'মেনু বারের স্ক্রোলিং টেক্সট' : 'Menu Bar Scrolling Ticker'}
+          </span>
+        </div>
+
+        {announcementSaveMsg && (
+          <div className="p-2.5 bg-green-50 border border-green-300 rounded text-xs text-green-800 flex items-center gap-2">
+            <CheckCircle size={15} className="text-green-600 shrink-0" />
+            <span>{announcementSaveMsg}</span>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="announcementBannerToggle"
+            checked={announcementBanner}
+            onChange={(e) => setAnnouncementBanner(e.target.checked)}
+            className="w-4 h-4 accent-[#0055EA] cursor-pointer"
+          />
+          <label htmlFor="announcementBannerToggle" className="font-semibold text-gray-800 cursor-pointer">
+            {language === 'bn'
+              ? 'মেনু বারে স্ক্রোলিং বিজ্ঞাপন ব্যানার সক্রিয় রাখুন (Enable Scrolling Announcement Banner)'
+              : 'Show scrolling announcement ticker in top menu bar'}
+          </label>
+        </div>
+
+        <div>
+          <label className="block text-gray-700 font-semibold mb-1">
+            {language === 'bn' ? 'বিজ্ঞাপন বা ঘোষণার লেখা (Announcement / Ad Text):' : 'Announcement / Ad Text:'}
+          </label>
+          <textarea
+            rows={2}
+            value={announcementText}
+            onChange={(e) => setAnnouncementText(e.target.value)}
+            placeholder={
+              language === 'bn'
+                ? 'বিজ্ঞাপনের টেক্সট লিখুন, যেমন: ⭐ দেনাপাওনা ডিজিটাল লেজার — নিরাপদ ১০০% অটো ক্লাউড ব্যাকআপ...'
+                : 'Enter your custom advertisement or announcement text...'
+            }
+            className="w-full px-2.5 py-2 bg-white border border-[#7F9DB9] outline-none text-xs rounded-[2px]"
+          />
+        </div>
+
+        {/* Live Preview Box */}
+        <div className="space-y-1">
+          <span className="text-[11px] font-bold text-gray-600">
+            {language === 'bn' ? 'লাইভ প্রিভিউ (Live Preview):' : 'Live Preview:'}
+          </span>
+          <div className="h-[26px] bg-white border border-[#7F9DB9] xp-bevel-inset rounded px-2 flex items-center overflow-hidden">
+            <span className="shrink-0 text-[10px] font-bold text-[#A91B0D] bg-[#FDE8E8] px-1 py-0.2 rounded border border-[#F8B4B4] mr-2 flex items-center gap-1 select-none">
+              <span className="animate-pulse">📢</span>
+              <span>{language === 'bn' ? 'বিজ্ঞাপন' : 'Ads'}</span>
+            </span>
+            <div className="relative w-full overflow-hidden whitespace-nowrap">
+              <span className="xp-marquee-text text-[11px] text-[#003399] font-medium">
+                {announcementBanner && announcementText.trim()
+                  ? announcementText
+                  : '— (বিজ্ঞাপন বন্ধ রয়েছে / Announcement disabled) —'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-1 flex justify-end">
+          <button
+            type="submit"
+            className="xp-button-primary px-4 py-1.5 text-xs font-semibold cursor-pointer flex items-center gap-1.5"
+          >
+            <Save size={13} />
+            <span>
+              {language === 'bn' ? 'বিজ্ঞাপন সংরক্ষণ করুন' : 'Save Announcement Banner'}
+            </span>
+          </button>
+        </div>
+      </form>
+
+      {/* Danger Zone: Permanent Account Ledger Deletion */}
+      <div className="bg-[#FFF5F5] p-4 rounded-[4px] border-2 border-[#E57373] xp-bevel-inset space-y-3 text-xs">
+        <div className="flex items-center gap-2 pb-2 border-b border-[#FFCDD2]">
+          <AlertTriangle size={18} className="text-[#C62828]" />
+          <div>
+            <h3 className="font-bold text-[#B71C1C] text-sm">
+              {language === 'bn'
+                ? 'ডেঞ্জার জোন: স্থায়ী তথ্য বিলোপ (Danger Zone: Permanent Data Wipe)'
+                : 'Danger Zone: Permanent Account Ledger Reset'}
+            </h3>
+            <p className="text-[11px] text-[#D32F2F]">
+              {language === 'bn'
+                ? 'সাবধান! এই সেকশনের অপশনগুলো অপরিবর্তনীয় এবং স্থায়ীভাবে সকল ডাটা মুছে ফেলে।'
+                : 'Caution! Actions here are permanent and cannot be undone.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          {/* Card 1: Delete All Contacts */}
+          <div className="bg-white p-3.5 rounded-[4px] border border-[#FFCDD2] shadow-xs flex flex-col justify-between space-y-3">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                  <Trash2 size={14} className="text-red-600" />
+                  <span>{language === 'bn' ? 'সকল কন্ট্যাক্ট মুছুন' : 'Delete All Contacts'}</span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-red-100 text-red-800">
+                  {contacts.length} {language === 'bn' ? 'টি কন্ট্যাক্ট' : 'Contacts'}
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-600 leading-relaxed">
+                {language === 'bn'
+                  ? 'আপনার সমস্ত সংরক্ষিত কাস্টমার/সাপ্লায়ার কন্ট্যাক্ট এবং তাদের লিঙ্কযুক্ত সকল স্টেটমেন্ট স্থানীয় মেমরি ও ক্লাউড ফায়ারস্টোর থেকে স্থায়ীভাবে মুছে ফেলবে।'
+                  : 'Permanently deletes all contacts and their public lookup statements locally and from Firebase Cloud.'}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                soundService.playClick();
+                setIsDeleteContactsModalOpen(true);
+              }}
+              className="w-full py-1.5 px-3 bg-[#FFEBEE] hover:bg-[#FFCDD2] text-[#C62828] border border-[#EF9A9A] rounded-[3px] font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition"
+            >
+              <Trash2 size={13} />
+              <span>{language === 'bn' ? 'সকল কন্ট্যাক্ট ডিলিট করুন...' : 'Delete All Contacts...'}</span>
+            </button>
+          </div>
+
+          {/* Card 2: Delete All Ledger History & Transactions */}
+          <div className="bg-white p-3.5 rounded-[4px] border border-[#FFCDD2] shadow-xs flex flex-col justify-between space-y-3">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                  <Trash2 size={14} className="text-red-600" />
+                  <span>{language === 'bn' ? 'সকল লেনদেন ইতিহাস মুছুন' : 'Delete All History'}</span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-red-100 text-red-800">
+                  {transactions.length} {language === 'bn' ? 'টি লেনদেন' : 'Transactions'}
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-600 leading-relaxed">
+                {language === 'bn'
+                  ? 'আপনার খাতার সমস্ত লেনদেন, জমা, বকেয়া পরিশোধের ইতিহাস মুছে ফেলবে এবং সকল কন্ট্যাক্টের ব্যালেন্স ০ করে দিবে। কন্ট্যাক্ট তালিকা অক্ষুণ্ণ থাকবে।'
+                  : 'Permanently clears all ledger transactions and resets balances to 0, while keeping contact profiles.'}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                soundService.playClick();
+                setIsDeleteTxModalOpen(true);
+              }}
+              className="w-full py-1.5 px-3 bg-[#FFEBEE] hover:bg-[#FFCDD2] text-[#C62828] border border-[#EF9A9A] rounded-[3px] font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition"
+            >
+              <Trash2 size={13} />
+              <span>{language === 'bn' ? 'সকল লেনদেন হিস্ট্রি মুছুন...' : 'Delete All History...'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Double Confirmation Modal: Delete All Contacts */}
+      <DangerConfirmModal
+        isOpen={isDeleteContactsModalOpen}
+        title={language === 'bn' ? 'সকল কন্ট্যাক্ট মুছে ফেলার নিশ্চিতকরণ' : 'Confirm Delete All Contacts'}
+        description={
+          language === 'bn'
+            ? 'আপনি কি নিশ্চিত যে আপনার অ্যাকাউন্টের সমস্ত কন্ট্যাক্ট স্থায়ীভাবে মুছে ফেলতে চান? এতে তাদের সমস্ত হিস্ট্রি এবং ক্লাউড স্টেটমেন্টও ডিলিট হয়ে যাবে। এই কাজ আর পূর্বাবস্থায় ফিরিয়ে আনা যাবে না!'
+            : 'Are you sure you want to permanently delete all contacts? All linked ledger records and cloud statements will also be erased permanently.'
+        }
+        itemCountInfo={`Contacts to be deleted: ${contacts.length}`}
+        confirmPhrase="DELETE ALL CONTACTS"
+        alternativePhrase="সকল কন্ট্যাক্ট মুছুন"
+        confirmButtonText={language === 'bn' ? 'সকল কন্ট্যাক্ট মুছুন' : 'Permanently Delete All'}
+        onConfirm={handleConfirmDeleteAllContacts}
+        onClose={() => setIsDeleteContactsModalOpen(false)}
+      />
+
+      {/* Double Confirmation Modal: Delete All Transactions */}
+      <DangerConfirmModal
+        isOpen={isDeleteTxModalOpen}
+        title={language === 'bn' ? 'সকল লেনদেন ইতিহাস মুছে ফেলার নিশ্চিতকরণ' : 'Confirm Delete All Transactions'}
+        description={
+          language === 'bn'
+            ? 'আপনি কি নিশ্চিত যে আপনার খাতার সমস্ত লেনদেন এবং পরিশোধের ইতিহাস মুছে ফেলতে চান? আপনার কন্ট্যাক্ট তালিকা অক্ষুণ্ণ রেখে সকল ব্যালেন্স ০ টাকা করা হবে। এই কাজ আর পূর্বাবস্থায় ফিরিয়ে আনা যাবে না!'
+            : 'Are you sure you want to permanently clear all ledger transaction history? All contact balances will be reset to 0. This action cannot be undone.'
+        }
+        itemCountInfo={`Transactions to be deleted: ${transactions.length}`}
+        confirmPhrase="DELETE ALL TRANSACTIONS"
+        alternativePhrase="সকল লেনদেন মুছুন"
+        confirmButtonText={language === 'bn' ? 'সকল ইতিহাস মুছুন' : 'Permanently Wipe History'}
+        onConfirm={handleConfirmDeleteAllTransactions}
+        onClose={() => setIsDeleteTxModalOpen(false)}
+      />
     </div>
   );
 };

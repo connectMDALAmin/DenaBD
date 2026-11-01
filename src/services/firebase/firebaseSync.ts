@@ -83,8 +83,29 @@ class FirebaseSyncService {
   private authSubscribers: Set<(user: AppUser | null, isReady: boolean, isAdmin: boolean) => void> = new Set();
   private justRegisteredUid: string | null = null;
 
+  private currentAppSettings: AppSettings = (() => {
+    const defaultSettings: AppSettings = {
+      id: 'general',
+      maintenanceMode: false,
+      maintenanceMessage: 'System maintenance in progress. Please check back shortly. / সিস্টেম রক্ষণাবেক্ষণ চলছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।',
+      announcementBanner: true,
+      announcementText: '⭐ দেনাপাওনা ডিজিটাল লেজার — নিরাপদ স্বয়ংক্রিয় ক্লাউড ব্যাকআপ • বাকির খাতা ও দেনা-পাওনা ট্র্যাকিং • ১-ক্লিক মোবাইল স্টেটমেন্ট পোর্টাল | আপনার ব্যবসার হিসাব রাখুন ১০০% নিরাপদ ও নির্ভুলভাবে!',
+      defaultCurrency: 'BDT (৳)',
+      updatedAt: new Date().toISOString(),
+    };
+    try {
+      const cached = localStorage.getItem('denapawna_app_settings');
+      if (cached) {
+        return { ...defaultSettings, ...JSON.parse(cached) };
+      }
+    } catch (_) {}
+    return defaultSettings;
+  })();
+  private appSettingsSubscribers: Set<(settings: AppSettings) => void> = new Set();
+
   constructor() {
     this.initAuthListener();
+    this.startAppSettingsListener();
   }
 
   private saveStoredSession(user: AppUser) {
@@ -642,6 +663,44 @@ class FirebaseSyncService {
     }
   }
 
+  public async deleteAllContactsFromCloud(): Promise<void> {
+    if (!this.currentUser) return;
+    try {
+      const peopleCol = collection(firestore, `users/${this.currentUser.uid}/people`);
+      const snap = await getDocs(peopleCol);
+      for (const d of snap.docs) {
+        await deleteDoc(d.ref);
+      }
+      // Also delete any public statements owned by this user
+      const statementsCol = collection(firestore, 'public_statements');
+      const q = query(statementsCol, where('ownerUserId', '==', this.currentUser.uid));
+      const stmtSnap = await getDocs(q);
+      for (const d of stmtSnap.docs) {
+        await deleteDoc(d.ref);
+      }
+    } catch (e) {
+      console.warn('Failed to delete all contacts from Firestore:', e);
+    }
+  }
+
+  public async deleteAllTransactionsFromCloud(): Promise<void> {
+    if (!this.currentUser) return;
+    try {
+      const txCol = collection(firestore, `users/${this.currentUser.uid}/transactions`);
+      const snap = await getDocs(txCol);
+      for (const d of snap.docs) {
+        await deleteDoc(d.ref);
+      }
+      const repaymentsCol = collection(firestore, `users/${this.currentUser.uid}/repayments`);
+      const repSnap = await getDocs(repaymentsCol);
+      for (const d of repSnap.docs) {
+        await deleteDoc(d.ref);
+      }
+    } catch (e) {
+      console.warn('Failed to delete all transactions from Firestore:', e);
+    }
+  }
+
   public async updatePublicStatement(contact: Contact): Promise<void> {
     if (!this.currentUser) return;
     try {
@@ -865,45 +924,103 @@ class FirebaseSyncService {
     }
   }
 
-  public async getAppSettings(): Promise<AppSettings> {
-    const defaultSettings: AppSettings = {
-      id: 'general',
-      maintenanceMode: false,
-      maintenanceMessage: 'System maintenance in progress. Please check back shortly.',
-      announcementBanner: false,
-      announcementText: '',
-      defaultCurrency: 'BDT (৳)',
-      updatedAt: new Date().toISOString(),
-    };
+  public startAppSettingsListener(): void {
+    try {
+      const docRef = doc(firestore, 'app_settings', 'general');
+      const unsub = onSnapshot(
+        docRef,
+        (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            this.currentAppSettings = {
+              ...this.currentAppSettings,
+              ...data,
+            } as AppSettings;
+            try {
+              localStorage.setItem('denapawna_app_settings', JSON.stringify(this.currentAppSettings));
+            } catch (_) {}
+            this.notifyAppSettingsSubscribers();
+          }
+        },
+        (err) => {
+          console.warn('App settings onSnapshot warning (using local/fallback settings):', err.message);
+        }
+      );
+      this.unsubscribers.push(unsub);
+    } catch (err) {
+      console.warn('Could not establish app_settings listener:', err);
+    }
+  }
 
+  public getAppSettingsSync(): AppSettings {
+    return this.currentAppSettings;
+  }
+
+  public subscribeAppSettings(cb: (settings: AppSettings) => void): () => void {
+    this.appSettingsSubscribers.add(cb);
+    cb(this.currentAppSettings);
+    return () => this.appSettingsSubscribers.delete(cb);
+  }
+
+  private notifyAppSettingsSubscribers(): void {
+    this.appSettingsSubscribers.forEach((cb) => {
+      try {
+        cb(this.currentAppSettings);
+      } catch (e) {
+        console.warn('Error in app settings subscriber:', e);
+      }
+    });
+  }
+
+  public async getAppSettings(): Promise<AppSettings> {
     try {
       const docRef = doc(firestore, 'app_settings', 'general');
       const snap = await getDoc(docRef);
       if (snap.exists()) {
-        return { ...defaultSettings, ...snap.data() } as AppSettings;
+        const data = snap.data();
+        this.currentAppSettings = {
+          ...this.currentAppSettings,
+          ...data,
+        } as AppSettings;
+        try {
+          localStorage.setItem('denapawna_app_settings', JSON.stringify(this.currentAppSettings));
+        } catch (_) {}
+        return this.currentAppSettings;
       }
     } catch (e) {
-      console.warn('Could not fetch app settings from Firestore, using default', e);
+      console.warn('Could not fetch app settings from Firestore, returning cached/default:', e);
     }
-    return defaultSettings;
+    return this.currentAppSettings;
   }
 
   public async saveAppSettings(settings: Partial<AppSettings>): Promise<void> {
-    if (!this.isAdminUser) {
-      throw new Error('Access Denied: Administrator privileges required.');
-    }
-    const docRef = doc(firestore, 'app_settings', 'general');
-    await setDoc(docRef, {
+    // 1. Instantly update local in-memory state and persistent localStorage
+    this.currentAppSettings = {
+      ...this.currentAppSettings,
       ...settings,
       id: 'general',
       updatedAt: new Date().toISOString(),
       updatedBy: this.currentUser?.email || 'admin',
-    }, { merge: true });
+    };
+    try {
+      localStorage.setItem('denapawna_app_settings', JSON.stringify(this.currentAppSettings));
+    } catch (_) {}
+    this.notifyAppSettingsSubscribers();
 
-    await this.logAuditEvent({
-      action: 'UPDATE_APP_SETTINGS',
-      details: `App settings updated by ${this.currentUser?.email}`,
-    });
+    // 2. If signed in, sync to Firestore cloud
+    if (this.currentUser) {
+      try {
+        const docRef = doc(firestore, 'app_settings', 'general');
+        await setDoc(docRef, this.currentAppSettings, { merge: true });
+
+        await this.logAuditEvent({
+          action: 'UPDATE_APP_SETTINGS',
+          details: `App settings updated (Maintenance: ${this.currentAppSettings.maintenanceMode}, Banner: ${this.currentAppSettings.announcementBanner})`,
+        });
+      } catch (err: any) {
+        console.warn('Could not push app_settings to Firestore (local settings applied):', err?.message);
+      }
+    }
   }
 }
 

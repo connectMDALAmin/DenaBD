@@ -31,7 +31,7 @@ export const XPWindow: React.FC<XPWindowProps> = ({
   className = '',
 }) => {
   const { t, language, setLanguage } = useI18n();
-  const { triggerSync, userProfile, openPrintModal } = useApp();
+  const { triggerSync, userProfile, openPrintModal, appSettings } = useApp();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const fileButtonRef = React.useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -156,6 +156,18 @@ export const XPWindow: React.FC<XPWindowProps> = ({
                     <XPIcon name="print" size={15} />
                     <span className="font-medium">Print Statement</span>
                   </button>
+                  <div className="border-t border-[#E0E0E0] my-1" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveMenu(null);
+                      if (onMaximize) onMaximize();
+                    }}
+                    className="w-full text-left px-3 py-1.5 hover:bg-[#316AC5] hover:text-white flex items-center gap-2.5 cursor-pointer transition-colors"
+                  >
+                    <span className="text-sm">⛶</span>
+                    <span className="font-medium">{language === 'bn' ? 'পূর্ণ পর্দা / রিস্টোর (Fullscreen)' : 'Toggle Fullscreen'}</span>
+                  </button>
                 </div>
               </>,
               document.body
@@ -188,7 +200,9 @@ export const XPWindow: React.FC<XPWindowProps> = ({
           </span>
           <div className="relative w-full overflow-hidden whitespace-nowrap">
             <span className="xp-marquee-text text-[11px] text-[#003399] font-medium cursor-default">
-              {language === 'bn'
+              {appSettings?.announcementBanner && appSettings?.announcementText?.trim()
+                ? appSettings.announcementText
+                : language === 'bn'
                 ? '⭐ দেনাপাওনা ডিজিটাল লেজার — নিরাপদ স্বয়ংক্রিয় ক্লাউড ব্যাকআপ • বাকির খাতা ও দেনা-পাওনা ট্র্যাকিং • ১-ক্লিক মোবাইল স্টেটমেন্ট পোর্টাল | আপনার ব্যবসার হিসাব রাখুন ১০০% নিরাপদ ও নির্ভুলভাবে!'
                 : '⭐ DenaPawna Digital Ledger — 100% Secure Auto Cloud Sync • Smart Khata & Debt Tracking • 1-Click Mobile Statement Portal | Keep your business transactions accurate and safe!'}
             </span>

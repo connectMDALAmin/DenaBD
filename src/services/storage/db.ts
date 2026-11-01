@@ -329,6 +329,40 @@ class DatabaseService {
     return true;
   }
 
+  public deleteAllContacts(): { deletedCount: number; deletedContactIds: string[] } {
+    const currentContacts = this.getContacts();
+    const contactIds = currentContacts.map((c) => c.id);
+    safeStorage.setItem(this.getContactsKey(), '[]');
+    // When all contacts are deleted, all associated transactions are also deleted
+    safeStorage.setItem(this.getTransactionsKey(), '[]');
+    this.notify();
+    return {
+      deletedCount: contactIds.length,
+      deletedContactIds: contactIds,
+    };
+  }
+
+  public deleteAllTransactions(): { deletedCount: number; deletedTxIds: string[] } {
+    const currentTransactions = this.getTransactions();
+    const txIds = currentTransactions.map((t) => t.id);
+    safeStorage.setItem(this.getTransactionsKey(), '[]');
+
+    // Reset opening balances on remaining contacts to keep ledger consistent
+    const currentContacts = this.getContacts();
+    const resetContacts = currentContacts.map((c) => ({
+      ...c,
+      openingBalance: 0,
+      updatedAt: new Date().toISOString(),
+    }));
+    safeStorage.setItem(this.getContactsKey(), JSON.stringify(resetContacts));
+
+    this.notify();
+    return {
+      deletedCount: txIds.length,
+      deletedTxIds: txIds,
+    };
+  }
+
   public getDemoDataCounts(): { contactsCount: number; transactionsCount: number } {
     const currentContacts = this.getContacts();
     const currentTransactions = this.getTransactions();

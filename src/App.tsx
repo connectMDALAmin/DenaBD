@@ -39,6 +39,7 @@ import { GoogleBrowserWindow } from './components/xp/GoogleBrowserWindow';
 import { DisplayPropertiesModal, WallpaperConfig } from './components/xp/DisplayPropertiesModal';
 import { shouldShowDailyIslamicQuote, markDailyIslamicQuoteShown } from './utils/dateUtils';
 import { soundService } from './services/sound/soundService';
+import { XPMaintenanceScreen } from './components/xp/XPMaintenanceScreen';
 
 const MainAppContent: React.FC = () => {
   const {
@@ -57,6 +58,8 @@ const MainAppContent: React.FC = () => {
     isPrintModalOpen,
     setIsPrintModalOpen,
     printContactId,
+    appSettings,
+    updateAppSettings,
   } = useApp();
 
   const { t, language } = useI18n();
@@ -145,6 +148,43 @@ const MainAppContent: React.FC = () => {
   // Window maximized state on desktop
   const [isMaximized, setIsMaximized] = useState(true);
 
+  // Cross-platform Fullscreen handler (Desktop & Android Chrome / PWA)
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        const el = document.documentElement as any;
+        if (el.requestFullscreen) {
+          await el.requestFullscreen();
+        } else if (el.webkitRequestFullscreen) {
+          await el.webkitRequestFullscreen();
+        } else if (el.mozRequestFullScreen) {
+          await el.mozRequestFullScreen();
+        } else if (el.msRequestFullscreen) {
+          await el.msRequestFullscreen();
+        }
+      } else {
+        const doc = document as any;
+        if (doc.exitFullscreen) {
+          await doc.exitFullscreen();
+        } else if (doc.webkitExitFullscreen) {
+          await doc.webkitExitFullscreen();
+        } else if (doc.mozCancelFullScreen) {
+          await doc.mozCancelFullScreen();
+        } else if (doc.msExitFullscreen) {
+          await doc.msExitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.warn('Fullscreen toggle request notice:', err);
+    }
+  };
+
+  const handleToggleMaximize = () => {
+    soundService.playClick();
+    setIsMaximized((prev) => !prev);
+    toggleFullscreen();
+  };
+
   // Selected contact for detail view
   const currentContact = contacts.find((c) => c.id === selectedContactId);
 
@@ -198,7 +238,12 @@ const MainAppContent: React.FC = () => {
     );
   }
 
-  // Protected Route: Require Google authentication before accessing the application
+  // Maintenance Mode Check: Block standard users when maintenance mode is active
+  if (appSettings?.maintenanceMode && !isAdmin) {
+    return <XPMaintenanceScreen />;
+  }
+
+  // Protected Route: Require authentication before accessing the application
   if (!firebaseUser) {
     return <XPLogonScreen />;
   }
@@ -260,7 +305,7 @@ const MainAppContent: React.FC = () => {
   return (
     <>
       <div
-        className="no-print relative w-screen h-screen overflow-hidden flex flex-col justify-between select-none"
+        className="no-print relative w-screen max-w-full h-[100dvh] overflow-hidden flex flex-col justify-between select-none"
         onContextMenu={(e) => {
           // If right clicking on desktop or wallpaper area
           const target = e.target as HTMLElement;
@@ -275,6 +320,30 @@ const MainAppContent: React.FC = () => {
           }
         }}
       >
+        {/* Admin Maintenance Mode Notice Banner */}
+        {isAdmin && appSettings?.maintenanceMode && (
+          <div className="bg-[#FFFFCC] border-b border-[#D4C07B] px-3 py-1 flex items-center justify-between text-xs text-[#665200] z-50 shrink-0 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-600 font-bold">⚠️</span>
+              <span className="font-bold">
+                {language === 'bn'
+                  ? 'মেইনটেনেন্স মোড সক্রিয়: সাধারণ ব্যবহারকারীদের প্রবেশাধিকার ব্লক রয়েছে।'
+                  : 'MAINTENANCE MODE ACTIVE: Standard user access is blocked.'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                soundService.playClick();
+                updateAppSettings({ maintenanceMode: false });
+              }}
+              className="xp-button px-2.5 py-0.5 text-xs text-red-700 font-bold cursor-pointer hover:bg-red-50 border-red-300"
+            >
+              {language === 'bn' ? 'মেইনটেনেন্স বন্ধ করুন' : 'Turn Off Maintenance Mode'}
+            </button>
+          </div>
+        )}
+
       {/* Dynamic Desktop Wallpaper Background */}
       <div className="absolute inset-0 z-0 select-none pointer-events-none overflow-hidden">
         {wallpaperConfig.preset === 'bliss' && (
@@ -447,7 +516,7 @@ const MainAppContent: React.FC = () => {
               title={winConfig.title}
               iconName={winConfig.icon}
               isMaximized={isMaximized}
-              onMaximize={() => setIsMaximized((prev) => !prev)}
+              onMaximize={handleToggleMaximize}
               onMinimize={() => {
                 soundService.playClick();
                 setIsAppMinimized(true);
@@ -595,6 +664,19 @@ const MainAppContent: React.FC = () => {
           >
             <XPIcon name="sync" size={15} />
             <span>{language === 'bn' ? 'রিফ্রেশ (Refresh)' : 'Refresh'}</span>
+          </button>
+
+          {/* Full Screen / Maximize Window */}
+          <button
+            type="button"
+            onClick={() => {
+              setContextMenuPos(null);
+              handleToggleMaximize();
+            }}
+            className="w-full text-left px-3 py-1.5 hover:bg-[#316AC5] hover:text-white flex items-center gap-2 cursor-pointer transition-colors"
+          >
+            <span className="text-sm">⛶</span>
+            <span>{language === 'bn' ? 'পূর্ণ পর্দা (Toggle Fullscreen / Maximize)' : 'Toggle Fullscreen / Maximize'}</span>
           </button>
 
           <div className="border-t border-[#E0E0E0] my-1" />
