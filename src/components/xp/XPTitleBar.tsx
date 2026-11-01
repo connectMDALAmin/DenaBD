@@ -8,7 +8,9 @@ interface XPTitleBarProps {
   onMinimize?: () => void;
   onMaximize?: () => void;
   onClose?: () => void;
+  onToggleFullscreen?: () => void;
   isMaximized?: boolean;
+  isFullscreen?: boolean;
 }
 
 export const XPTitleBar: React.FC<XPTitleBarProps> = ({
@@ -18,7 +20,9 @@ export const XPTitleBar: React.FC<XPTitleBarProps> = ({
   onMinimize,
   onMaximize,
   onClose,
+  onToggleFullscreen,
   isMaximized = true,
+  isFullscreen = false,
 }) => {
   const getThemeClass = () => {
     switch (theme) {
@@ -43,6 +47,17 @@ export const XPTitleBar: React.FC<XPTitleBarProps> = ({
 
       {/* Window Controls */}
       <div className="flex items-center gap-1 shrink-0">
+        {onToggleFullscreen && (
+          <button
+            type="button"
+            onClick={onToggleFullscreen}
+            className="xp-win-btn xp-win-minmax leading-none hover:cursor-pointer flex items-center justify-center font-bold text-[11px]"
+            title={isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
+            aria-label="Full Screen"
+          >
+            {isFullscreen ? '⤦' : '⛶'}
+          </button>
+        )}
         {onMinimize && (
           <button
             type="button"

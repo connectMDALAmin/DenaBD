@@ -12,9 +12,11 @@ interface XPWindowProps {
   onMinimize?: () => void;
   onMaximize?: () => void;
   onClose?: () => void;
+  onToggleFullscreen?: () => void;
   onOpenIslamicQuote?: () => void;
   onOpenDeveloperInfo?: () => void;
   isMaximized?: boolean;
+  isFullscreen?: boolean;
   className?: string;
 }
 
@@ -25,9 +27,11 @@ export const XPWindow: React.FC<XPWindowProps> = ({
   onMinimize,
   onMaximize,
   onClose,
+  onToggleFullscreen,
   onOpenIslamicQuote,
   onOpenDeveloperInfo,
   isMaximized = true,
+  isFullscreen = false,
   className = '',
 }) => {
   const { t, language, setLanguage } = useI18n();
@@ -93,7 +97,9 @@ export const XPWindow: React.FC<XPWindowProps> = ({
         onMinimize={onMinimize}
         onMaximize={onMaximize}
         onClose={onClose}
+        onToggleFullscreen={onToggleFullscreen}
         isMaximized={isMaximized}
+        isFullscreen={isFullscreen}
       />
 
       {/* Classic Menu Bar */}

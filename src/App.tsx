@@ -145,11 +145,29 @@ const MainAppContent: React.FC = () => {
     };
   }, []);
 
-  // Window maximized state on desktop
+  // Window maximized state on desktop & mobile
   const [isMaximized, setIsMaximized] = useState(true);
+
+  // Cross-platform browser Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(() => {
+    return typeof document !== 'undefined' ? !!document.fullscreenElement : false;
+  });
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+    };
+  }, []);
 
   // Cross-platform Fullscreen handler (Desktop & Android Chrome / PWA)
   const toggleFullscreen = async () => {
+    soundService.playClick();
     try {
       if (!document.fullscreenElement) {
         const el = document.documentElement as any;
@@ -179,10 +197,14 @@ const MainAppContent: React.FC = () => {
     }
   };
 
+  const handleToggleFullscreen = () => {
+    toggleFullscreen();
+    setIsMaximized(true);
+  };
+
   const handleToggleMaximize = () => {
     soundService.playClick();
     setIsMaximized((prev) => !prev);
-    toggleFullscreen();
   };
 
   // Selected contact for detail view
@@ -393,9 +415,17 @@ const MainAppContent: React.FC = () => {
       <PinLockModal />
 
       {/* Main Desktop Workspace Area */}
-      <div className="relative z-10 flex-1 flex p-1 sm:p-2.5 pb-[40px] sm:pb-[36px] overflow-hidden gap-2">
+      <div
+        className={`relative z-10 flex-1 flex pb-[40px] sm:pb-[36px] overflow-hidden gap-2 ${
+          !isAppMinimized && isMaximized ? 'p-0 sm:p-1' : 'p-1 sm:p-2.5'
+        }`}
+      >
         {/* Desktop Shortcut Icons with responsive wrapping & overflow protection */}
-        <aside className="flex flex-col flex-wrap content-start gap-1 py-1 z-10 shrink-0 max-h-full overflow-y-auto overflow-x-auto no-scrollbar scroll-smooth pr-1">
+        <aside
+          className={`flex-col flex-wrap content-start gap-1 py-1 z-10 shrink-0 max-h-full overflow-y-auto overflow-x-auto no-scrollbar scroll-smooth pr-1 ${
+            !isAppMinimized ? (isMaximized ? 'hidden' : 'hidden md:flex') : 'flex'
+          }`}
+        >
           <XPDesktopIcon
             name="ledger"
             label={t('navDashboard')}
@@ -511,12 +541,14 @@ const MainAppContent: React.FC = () => {
 
         {/* Active Application Window Container (Can be minimized) */}
         {!isAppMinimized && (
-          <main className="flex-1 flex flex-col h-full min-w-0 z-20 animate-in fade-in zoom-in-95 duration-100">
+          <main className="flex-1 flex flex-col h-full min-w-0 w-full z-20 animate-in fade-in zoom-in-95 duration-100">
             <XPWindow
               title={winConfig.title}
               iconName={winConfig.icon}
               isMaximized={isMaximized}
+              isFullscreen={isFullscreen}
               onMaximize={handleToggleMaximize}
+              onToggleFullscreen={handleToggleFullscreen}
               onMinimize={() => {
                 soundService.playClick();
                 setIsAppMinimized(true);

@@ -29,18 +29,23 @@ export const ContactList: React.FC<ContactListProps> = ({
   const [uploadMessage, setUploadMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter contacts by query and category
+  // Filter contacts by query and category with enhanced name and phone matching
   const filteredContacts = contacts.filter((c) => {
     const matchesCategory = selectedCategory === 'all' || c.category === selectedCategory;
     const q = searchQuery.toLowerCase().trim();
-    const matchesSearch =
-      !q ||
-      c.name.toLowerCase().includes(q) ||
-      c.phone.includes(q) ||
-      (c.address && c.address.toLowerCase().includes(q)) ||
-      (c.notes && c.notes.toLowerCase().includes(q));
+    if (!q) return matchesCategory;
 
-    return matchesCategory && matchesSearch;
+    const digitsOnlyQ = q.replace(/[^0-9]/g, '');
+    const digitsOnlyPhone = c.phone.replace(/[^0-9]/g, '');
+
+    const matchesName = c.name.toLowerCase().includes(q);
+    const matchesPhone =
+      c.phone.toLowerCase().includes(q) ||
+      (digitsOnlyQ.length > 0 && digitsOnlyPhone.includes(digitsOnlyQ));
+    const matchesAddress = c.address ? c.address.toLowerCase().includes(q) : false;
+    const matchesNotes = c.notes ? c.notes.toLowerCase().includes(q) : false;
+
+    return matchesCategory && (matchesName || matchesPhone || matchesAddress || matchesNotes);
   });
 
   const handleExportCsv = () => {
@@ -101,7 +106,7 @@ export const ContactList: React.FC<ContactListProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Upload Notification Message */}
       {uploadMessage && (
         <div
@@ -119,6 +124,95 @@ export const ContactList: React.FC<ContactListProps> = ({
           <span className="font-semibold">{uploadMessage.text}</span>
         </div>
       )}
+
+      {/* Primary Top Search & Quick Filter Input Field */}
+      <div className="bg-white p-3 rounded-[4px] border border-[#7F9DB9] xp-bevel-inset space-y-2.5">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+          {/* Live Search Input with Quick Clear Button */}
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#0055EA]" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={
+                language === 'bn'
+                  ? 'নাম বা ফোন নম্বর দিয়ে কন্ট্যাক্ট খুঁজুন... (যেমন: রফিক, 017...)'
+                  : 'Quick search contacts by name or phone number... (e.g. John, 017...)'
+              }
+              className="w-full pl-8 pr-8 py-1.5 bg-[#F9F9F9] focus:bg-white border border-[#7F9DB9] rounded-[2px] text-xs outline-none focus:ring-1 focus:ring-[#0055EA] placeholder:text-gray-400 font-sans"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  soundService.playClick();
+                  setSearchQuery('');
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 text-xs font-bold p-0.5 cursor-pointer"
+                title={language === 'bn' ? 'অনুসন্ধান মুছুন' : 'Clear search'}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Contact Count & Results Badge */}
+          <div className="flex items-center gap-2 shrink-0 text-xs justify-end">
+            <span className="font-mono text-[11px] font-bold px-2 py-1 rounded bg-[#EBF3FF] border border-[#B8D7FF] text-[#0047BA]">
+              {language === 'bn'
+                ? `${contacts.length} টির মধ্যে ${filteredContacts.length} টি কন্ট্যাক্ট`
+                : `${filteredContacts.length} of ${contacts.length} Contacts`}
+            </span>
+          </div>
+        </div>
+
+        {/* Category Filter Chips */}
+        <div className="flex flex-wrap items-center gap-1.5 text-xs pt-1 border-t border-gray-100">
+          <span className="text-[11px] font-semibold text-gray-500 mr-1 flex items-center gap-1">
+            <Filter size={12} className="text-gray-400" />
+            <span>{language === 'bn' ? 'ক্যাটাগরি:' : 'Filter:'}</span>
+          </span>
+          {[
+            { id: 'all', label: language === 'bn' ? 'সকল' : 'All' },
+            { id: 'customer', label: t('categoryCustomer') },
+            { id: 'supplier', label: t('categorySupplier') },
+            { id: 'friend_family', label: t('categoryFriendFamily') },
+            { id: 'employee', label: t('categoryEmployee') },
+            { id: 'other', label: t('categoryOther') },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => {
+                soundService.playClick();
+                setSelectedCategory(cat.id);
+              }}
+              className={`px-2 py-0.5 rounded-[2px] transition cursor-pointer text-[11px] ${
+                selectedCategory === cat.id
+                  ? 'bg-[#0055EA] text-white font-bold shadow-xs'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+
+          {(searchQuery || selectedCategory !== 'all') && (
+            <button
+              type="button"
+              onClick={() => {
+                soundService.playClick();
+                setSearchQuery('');
+                setSelectedCategory('all');
+              }}
+              className="ml-auto text-[11px] text-red-600 hover:underline font-semibold cursor-pointer"
+            >
+              {language === 'bn' ? 'ফিল্টার রিসেট' : 'Reset Filters'}
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Action Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-[#ECE9D8] border border-[#7F9DB9] rounded-[4px] xp-bevel-outset">
@@ -173,43 +267,6 @@ export const ContactList: React.FC<ContactListProps> = ({
             <span>JSON</span>
           </button>
         </div>
-
-        {/* Live Search Input */}
-        <div className="relative min-w-[200px] sm:min-w-[280px]">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t('search')}
-            className="w-full pl-8 pr-3 py-1 bg-white border border-[#7F9DB9] xp-bevel-inset text-xs outline-none focus:ring-1 focus:ring-[#0055EA]"
-          />
-        </div>
-      </div>
-
-      {/* Category Filter Chips */}
-      <div className="flex flex-wrap items-center gap-1 bg-[#ECE9D8] p-1 rounded-[3px] border border-[#7F9DB9] text-xs">
-        {[
-          { id: 'all', label: language === 'bn' ? 'সকল' : 'All' },
-          { id: 'customer', label: t('categoryCustomer') },
-          { id: 'supplier', label: t('categorySupplier') },
-          { id: 'friend_family', label: t('categoryFriendFamily') },
-          { id: 'employee', label: t('categoryEmployee') },
-          { id: 'other', label: t('categoryOther') },
-        ].map((cat) => (
-          <button
-            key={cat.id}
-            type="button"
-            onClick={() => setSelectedCategory(cat.id)}
-            className={`px-2.5 py-1 rounded-[2px] transition cursor-pointer text-xs ${
-              selectedCategory === cat.id
-                ? 'bg-[#0055EA] text-white font-bold'
-                : 'text-gray-800 hover:bg-white/50'
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
       </div>
 
       {/* Contact Table */}
@@ -230,10 +287,31 @@ export const ContactList: React.FC<ContactListProps> = ({
             <tbody className="divide-y divide-gray-100">
               {filteredContacts.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-gray-400 italic">
-                    {language === 'bn'
-                      ? 'কোনো কন্ট্যাক্ট পাওয়া যায়নি।'
-                      : 'No contacts found.'}
+                  <td colSpan={7} className="py-10 text-center text-gray-500 italic">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Search size={22} className="text-gray-400" />
+                      <p className="text-xs">
+                        {searchQuery
+                          ? language === 'bn'
+                            ? `"${searchQuery}" এর সাথে মিলে এমন কোনো কন্ট্যাক্ট পাওয়া যায়নি।`
+                            : `No contacts found matching "${searchQuery}".`
+                          : language === 'bn'
+                          ? 'কোনো কন্ট্যাক্ট পাওয়া যায়নি।'
+                          : 'No contacts found.'}
+                      </p>
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            soundService.playClick();
+                            setSearchQuery('');
+                          }}
+                          className="xp-button px-2.5 py-1 text-xs text-blue-700 font-semibold cursor-pointer"
+                        >
+                          {language === 'bn' ? 'অনুসন্ধান রিসেট করুন' : 'Clear search filter'}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (

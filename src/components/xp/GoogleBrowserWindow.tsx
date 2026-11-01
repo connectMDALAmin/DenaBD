@@ -67,6 +67,17 @@ export const GoogleBrowserWindow: React.FC<GoogleBrowserWindowProps> = ({
           }}
           onMaximize={() => setIsMaximized((prev) => !prev)}
           onMinimize={() => onClose()}
+          onToggleFullscreen={() => {
+            soundService.playClick();
+            setIsMaximized(true);
+            try {
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen?.();
+              } else {
+                document.exitFullscreen?.();
+              }
+            } catch (_) {}
+          }}
           isMaximized={isMaximized}
         />
 
