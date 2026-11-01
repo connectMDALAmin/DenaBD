@@ -81,15 +81,46 @@ export const ContactList: React.FC<ContactListProps> = ({
         }
 
         let addedCount = 0;
+        let updatedCount = 0;
         parsed.forEach((c) => {
-          saveContact(c);
-          addedCount++;
+          // Check if contact already exists by phone or by name
+          const existing = contacts.find((existingC) => {
+            if (c.phone && existingC.phone) {
+              const p1 = c.phone.replace(/[^0-9]/g, '');
+              const p2 = existingC.phone.replace(/[^0-9]/g, '');
+              if (p1 && p2 && (p1 === p2 || (p1.length >= 10 && p2.length >= 10 && (p1.endsWith(p2) || p2.endsWith(p1))))) {
+                return true;
+              }
+            }
+            return existingC.name.trim().toLowerCase() === c.name.trim().toLowerCase();
+          });
+
+          if (existing) {
+            saveContact({
+              ...existing,
+              name: c.name || existing.name,
+              phone: c.phone || existing.phone,
+              email: c.email || existing.email,
+              address: c.address || existing.address,
+              notes: c.notes ? (existing.notes ? `${existing.notes} | ${c.notes}` : c.notes) : existing.notes,
+              id: existing.id,
+            });
+            updatedCount++;
+          } else {
+            saveContact(c);
+            addedCount++;
+          }
         });
 
         soundService.playClick();
+        const successMsg =
+          language === 'bn'
+            ? `ইমপোর্ট সম্পন্ন: ${addedCount} টি নতুন কন্ট্যাক্ট যুক্ত হয়েছে${updatedCount > 0 ? ` এবং ${updatedCount} টি কন্ট্যাক্ট আপডেট হয়েছে` : ''}!`
+            : `Import complete: ${addedCount} added${updatedCount > 0 ? `, ${updatedCount} updated` : ''}!`;
+
         setUploadMessage({
           type: 'success',
-          text: language === 'bn' ? `সফলভাবে ${addedCount} টি কন্ট্যাক্ট আপলোড করা হয়েছে!` : `Successfully uploaded ${addedCount} contacts!`,
+          text: successMsg,
         });
 
         setTimeout(() => setUploadMessage(null), 5000);
