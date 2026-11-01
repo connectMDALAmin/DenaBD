@@ -96,6 +96,7 @@ export interface UserProfile {
   pinEnabled: boolean;
   pinHash?: string;
   pinSalt?: string;
+  pinCode?: string;
   lockTimeoutMinutes: number; // 0 for disabled
   backupReminderDays: number;
   createdAt: string;

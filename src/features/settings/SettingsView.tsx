@@ -107,6 +107,7 @@ export const SettingsView: React.FC = () => {
       pinEnabled: true,
       pinSalt: salt,
       pinHash: hash,
+      pinCode: newPin,
     });
 
     setNewPin('');

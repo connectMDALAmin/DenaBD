@@ -5,9 +5,10 @@ import { calculateContactBalance, formatCurrency } from '../../services/accounti
 import { Search, ShieldCheck, Printer, ArrowLeft, AlertCircle, Lock } from 'lucide-react';
 import { XPIcon } from '../../components/xp/XPIcon';
 import { firebaseSync } from '../../services/firebase/firebaseSync';
+import { verifyPin } from '../../services/security/pinService';
 
 export const PublicLookupView: React.FC = () => {
-  const { contacts, transactions, userProfile } = useApp();
+  const { contacts, transactions, userProfile, firebaseUser } = useApp();
   const { t, language } = useI18n();
 
   const [phoneInput, setPhoneInput] = useState('');
@@ -16,6 +17,10 @@ export const PublicLookupView: React.FC = () => {
   const [lookupResult, setLookupResult] = useState<{
     contactName: string;
     phone: string;
+    ownerBusiness: string;
+    ownerName: string;
+    ownerPhone?: string;
+    ownerAddress?: string;
     receivable: number;
     payable: number;
     netBalance: number;
@@ -52,6 +57,15 @@ export const PublicLookupView: React.FC = () => {
     const cleanPhone = phoneInput.replace(/[^0-9]/g, '');
     const cleanToken = tokenInput.trim();
 
+    if (!cleanPhone) {
+      setErrorMessage(
+        language === 'bn'
+          ? 'অনুগ্রহ করে একটি সঠিক মোবাইল নম্বর লিখুন।'
+          : 'Please enter a valid phone number.'
+      );
+      return;
+    }
+
     if (!cleanToken) {
       setErrorMessage(
         language === 'bn'
@@ -61,43 +75,99 @@ export const PublicLookupView: React.FC = () => {
       return;
     }
 
-    // 1. Try querying Firestore live public statements collection
-    const firestoreResult = await firebaseSync.queryPublicStatementByPhone(phoneInput);
+    // Security Verification: Verify PIN against userProfile before returning any transaction records
+    let isProfilePinValid = false;
+    if (userProfile.pinEnabled && userProfile.pinHash && userProfile.pinSalt) {
+      const pinCheck = await verifyPin(cleanToken, userProfile.pinHash, userProfile.pinSalt);
+      isProfilePinValid = pinCheck.success;
+    } else if (userProfile.pinCode && userProfile.pinCode.trim() === cleanToken) {
+      isProfilePinValid = true;
+    } else {
+      // Fallback check against contacts in own ledger
+      const hasMatchingContactPin = contacts.some(
+        (c) => c.publicAccessToken && c.publicAccessToken.trim() === cleanToken
+      );
+      if (hasMatchingContactPin) {
+        isProfilePinValid = true;
+      }
+    }
+
+    if (!isProfilePinValid) {
+      setLookupResult(null);
+      setErrorMessage(
+        language === 'bn'
+          ? 'পিন যাচাইকরণ ব্যর্থ হয়েছে! আপনার প্রোফাইলের সিকিউরিটি পিনের সাথে মিলছে না।'
+          : 'PIN verification failed against your user profile. Access denied.'
+      );
+      return;
+    }
+
+    const authenticatedOwnerId = firebaseUser?.uid || userProfile.id;
+
+    // 1. Query Firestore for a document matching phone AND PIN, restricted strictly to user's own ledger
+    const firestoreResult = await firebaseSync.queryPublicStatementByPhone(
+      phoneInput,
+      cleanToken,
+      authenticatedOwnerId
+    );
+
     if (firestoreResult) {
+      if (firestoreResult.ownerUserId && firestoreResult.ownerUserId !== authenticatedOwnerId) {
+        setLookupResult(null);
+        setErrorMessage(
+          language === 'bn'
+            ? 'কোনো তথ্য পাওয়া যায়নি। এই তথ্যটি আপনার লেজারের অন্তর্ভুক্ত নয়।'
+            : 'No records found in your personal ledger.'
+        );
+        return;
+      }
+
       setLookupResult({
         contactName: firestoreResult.personName || 'Customer',
         phone: firestoreResult.personPhone || phoneInput,
+        ownerBusiness: firestoreResult.ownerBusiness || userProfile.businessName,
+        ownerName: firestoreResult.ownerName || userProfile.ownerName,
+        ownerPhone: firestoreResult.ownerPhone || '',
+        ownerAddress: firestoreResult.ownerAddress || '',
         receivable: (firestoreResult.totalGiven || 0) * 100,
         payable: (firestoreResult.totalTaken || 0) * 100,
         netBalance: (firestoreResult.netBalance || 0) * 100,
         statementDate: firestoreResult.lastUpdated ? firestoreResult.lastUpdated.split('T')[0] : new Date().toISOString().split('T')[0],
-        recentTransactions: [
-          {
-            date: new Date().toISOString().split('T')[0],
-            category: 'Firestore Cloud Statement',
-            amount: Math.abs((firestoreResult.netBalance || 0) * 100),
-            type: firestoreResult.status === 'due_to_me' ? 'given' : 'borrowed',
-          },
-        ],
+        recentTransactions: Array.isArray(firestoreResult.recentTransactions) && firestoreResult.recentTransactions.length > 0
+          ? firestoreResult.recentTransactions
+          : [
+              {
+                date: new Date().toISOString().split('T')[0],
+                category: 'Verified Ledger Balance',
+                amount: Math.abs((firestoreResult.netBalance || 0) * 100),
+                type: firestoreResult.status === 'due_to_me' ? 'given' : 'borrowed',
+              },
+            ],
       });
       return;
     }
 
-    // 2. Fallback to Local Verified Matching
+    // 2. Fallback to Local Verified Matching in own ledger with EXACT PIN and phone matching
     const matchedContact = contacts.find((c) => {
       if (!c.publicLookupEnabled) return false;
       const cCleanPhone = c.phone.replace(/[^0-9]/g, '');
       const phoneMatches =
-        cCleanPhone.endsWith(cleanPhone) || cleanPhone.endsWith(cCleanPhone);
+        cCleanPhone === cleanPhone ||
+        (cCleanPhone.length >= 10 && cleanPhone.length >= 10 && (cCleanPhone.endsWith(cleanPhone) || cleanPhone.endsWith(cCleanPhone)));
       const tokenMatches =
-        c.publicAccessToken && c.publicAccessToken.trim() === cleanToken;
+        Boolean(c.publicAccessToken && c.publicAccessToken.trim() === cleanToken) ||
+        Boolean(userProfile.pinCode && userProfile.pinCode.trim() === cleanToken);
       return phoneMatches && tokenMatches;
     });
 
     if (!matchedContact) {
-      // Generic response for privacy / anti-enumeration
+      // Strictly prevent unauthorized access or wrong PIN
       setLookupResult(null);
-      setErrorMessage(t('lookupNotFound'));
+      setErrorMessage(
+        language === 'bn'
+          ? 'কোনো তথ্য পাওয়া যায়নি। মোবাইল নম্বর অথবা অ্যাক্সেস পিন ভুল হয়েছে।'
+          : 'No record found. Please verify the phone number and secret PIN.'
+      );
       return;
     }
 
@@ -108,7 +178,7 @@ export const PublicLookupView: React.FC = () => {
       .slice(0, 5)
       .map((tx) => ({
         date: tx.date,
-        category: tx.category,
+        category: tx.category || tx.notes || 'General Entry',
         amount: tx.amount,
         type: tx.type,
       }));
@@ -116,6 +186,10 @@ export const PublicLookupView: React.FC = () => {
     setLookupResult({
       contactName: matchedContact.name,
       phone: matchedContact.phone,
+      ownerBusiness: userProfile.businessName,
+      ownerName: userProfile.ownerName,
+      ownerPhone: userProfile.phone || '',
+      ownerAddress: userProfile.address || '',
       receivable: summary.receivable,
       payable: summary.payable,
       netBalance: summary.netBalance,
@@ -213,9 +287,27 @@ export const PublicLookupView: React.FC = () => {
         <div className="bg-white p-6 rounded-[4px] border border-[#7F9DB9] xp-bevel-inset space-y-4">
           <div className="flex items-center justify-between border-b pb-3 border-gray-200">
             <div>
-              <h3 className="text-base font-bold text-gray-900">{userProfile.businessName}</h3>
-              <div className="text-xs text-gray-500">
-                {userProfile.address || 'Dhaka, Bangladesh'} • {userProfile.phone}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold bg-[#E8F0FE] text-[#1967D2] px-1.5 py-0.5 rounded border border-[#C2D7FF]">
+                  {language === 'bn' ? 'অনুমোদিত খাতা' : 'Verified Ledger'}
+                </span>
+                <h3 className="text-base font-bold text-gray-900">{lookupResult.ownerBusiness}</h3>
+              </div>
+              <div className="text-xs text-gray-600 mt-0.5 flex flex-wrap items-center gap-1.5">
+                <span>{language === 'bn' ? 'স্বত্বাধিকারী:' : 'Proprietor:'}</span>
+                <span className="font-semibold text-gray-800">{lookupResult.ownerName}</span>
+                {lookupResult.ownerPhone && (
+                  <>
+                    <span>•</span>
+                    <span className="font-mono">{lookupResult.ownerPhone}</span>
+                  </>
+                )}
+                {lookupResult.ownerAddress && (
+                  <>
+                    <span>•</span>
+                    <span>{lookupResult.ownerAddress}</span>
+                  </>
+                )}
               </div>
             </div>
             <div className="flex gap-2">
@@ -253,9 +345,9 @@ export const PublicLookupView: React.FC = () => {
           <div className="p-4 bg-gray-50 border border-gray-300 rounded text-center">
             <span className="text-xs text-gray-600 font-medium block">
               {lookupResult.netBalance > 0
-                ? `${userProfile.businessName} ${language === 'bn' ? 'আপনার নিকট পাবে' : 'is owed by you'}`
+                ? `${lookupResult.ownerBusiness} ${language === 'bn' ? 'আপনার নিকট পাবে' : 'is owed by you'}`
                 : lookupResult.netBalance < 0
-                ? `${language === 'bn' ? 'আপনি দোকান থেকে পাবেন' : 'You are owed by business'}`
+                ? `${language === 'bn' ? 'আপনি' : 'You are owed by'} ${lookupResult.ownerBusiness} ${language === 'bn' ? 'থেকে পাবেন' : ''}`
                 : t('settled')}
             </span>
             <div

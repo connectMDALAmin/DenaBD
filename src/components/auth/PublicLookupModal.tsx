@@ -26,6 +26,8 @@ export const PublicLookupModal: React.FC<PublicLookupModalProps> = ({ isOpen, on
     contactName: string;
     phone: string;
     businessName: string;
+    ownerName?: string;
+    ownerPhone?: string;
     receivable: number;
     payable: number;
     netBalance: number;
@@ -64,13 +66,15 @@ export const PublicLookupModal: React.FC<PublicLookupModalProps> = ({ isOpen, on
         return;
       }
 
-      // 1. Try Firestore cloud public statements
-      const cloudResult = await firebaseSync.queryPublicStatementByPhone(phoneInput);
+      // 1. Try Firestore cloud public statements with BOTH phone and secret PIN
+      const cloudResult = await firebaseSync.queryPublicStatementByPhone(phoneInput, cleanToken);
       if (cloudResult) {
         setResult({
           contactName: cloudResult.personName || 'Customer',
           phone: cloudResult.personPhone || phoneInput,
           businessName: cloudResult.ownerBusiness || userProfile.businessName,
+          ownerName: cloudResult.ownerName,
+          ownerPhone: cloudResult.ownerPhone,
           receivable: (cloudResult.totalGiven || 0) * 100,
           payable: (cloudResult.totalTaken || 0) * 100,
           netBalance: (cloudResult.netBalance || 0) * 100,
@@ -80,11 +84,13 @@ export const PublicLookupModal: React.FC<PublicLookupModalProps> = ({ isOpen, on
         return;
       }
 
-      // 2. Fallback to Local Verified Matching
+      // 2. Fallback to Local Verified Matching with EXACT PIN
       const matchedContact = contacts.find((c) => {
         if (!c.publicLookupEnabled) return false;
         const cCleanPhone = c.phone.replace(/[^0-9]/g, '');
-        const phoneMatches = cCleanPhone.endsWith(cleanPhone) || cleanPhone.endsWith(cCleanPhone);
+        const phoneMatches =
+          cCleanPhone === cleanPhone ||
+          (cCleanPhone.length >= 10 && cleanPhone.length >= 10 && (cCleanPhone.endsWith(cleanPhone) || cleanPhone.endsWith(cCleanPhone)));
         const tokenMatches = Boolean(c.publicAccessToken && c.publicAccessToken.trim() === cleanToken);
         return phoneMatches && tokenMatches;
       });
@@ -108,6 +114,8 @@ export const PublicLookupModal: React.FC<PublicLookupModalProps> = ({ isOpen, on
           contactName: matchedContact.name,
           phone: matchedContact.phone,
           businessName: userProfile.businessName,
+          ownerName: userProfile.ownerName,
+          ownerPhone: userProfile.phone,
           receivable: Math.max(0, rec),
           payable: Math.max(0, pay),
           netBalance: net,
@@ -117,8 +125,8 @@ export const PublicLookupModal: React.FC<PublicLookupModalProps> = ({ isOpen, on
         setResult(null);
         setErrorMessage(
           language === 'bn'
-            ? 'এই নম্বরে কোনো সক্রিয় হিসাব বা অনুমোদিত পাবলিক স্টেটমেন্ট পাওয়া যায়নি।'
-            : 'No active ledger statement found for this phone number.'
+            ? 'কোনো তথ্য পাওয়া যায়নি। মোবাইল নম্বর অথবা অ্যাক্সেস পিন ভুল হয়েছে।'
+            : 'No active record found. Please verify the phone number and secret PIN.'
         );
       }
     } catch (err: any) {

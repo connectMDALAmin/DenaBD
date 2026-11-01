@@ -825,12 +825,23 @@ class FirebaseSyncService {
       const allTxs = db.getTransactions();
       const summary = calculateContactBalance(contact, allTxs);
 
+      const recentTxs = allTxs
+        .filter((tx) => tx.contactId === contact.id && tx.status === 'active')
+        .slice(0, 5)
+        .map((tx) => ({
+          date: tx.date,
+          category: tx.category || tx.notes || 'General Entry',
+          amount: tx.amount,
+          type: tx.type,
+        }));
+
       await setDoc(docRef, {
         id: statementId,
         ownerUserId: this.currentUser.uid,
         ownerName: userProfile.ownerName,
         ownerBusiness: userProfile.businessName,
         ownerPhone: userProfile.phone || '',
+        ownerAddress: userProfile.address || '',
         personPhone: contact.phone,
         personName: contact.name,
         netBalance: fromMinorUnits(summary.netBalance),
@@ -840,25 +851,49 @@ class FirebaseSyncService {
         totalRepaid: 0,
         lastUpdated: new Date().toISOString(),
         publicAllowed: true,
+        publicAccessToken: (contact.publicAccessToken || '1234').trim(),
+        userPin: (userProfile.pinCode || '').trim(),
+        recentTransactions: recentTxs,
       });
     } catch (e) {
       console.warn('Failed to update public statement in Firestore:', e);
     }
   }
 
-  public async queryPublicStatementByPhone(phone: string): Promise<any | null> {
+  public async queryPublicStatementByPhone(phone: string, token: string, ownerUserId?: string): Promise<any | null> {
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const cleanToken = (token || '').trim();
+    if (!cleanPhone || !cleanToken) return null;
+
     try {
-      const cleanPhone = phone.replace(/[^0-9]/g, '');
       const statementsCol = collection(firestore, 'public_statements');
       const q = query(
         statementsCol,
         where('publicAllowed', '==', true)
       );
       const snapshot = await getDocs(q);
+
+      // Multi-Tenant Isolation: Must match BOTH the phone number AND the unique secret PIN.
+      // If ownerUserId is provided, ensure users can ONLY retrieve data from their own ledger.
       const matched = snapshot.docs.find((d) => {
         const data = d.data();
+
+        // Enforce ledger ownership if authenticated user ID is provided
+        if (ownerUserId && data.ownerUserId && data.ownerUserId !== ownerUserId) {
+          return false;
+        }
+
         const p = (data.personPhone || '').replace(/[^0-9]/g, '');
-        return p.endsWith(cleanPhone) || cleanPhone.endsWith(p);
+        const phoneMatches =
+          p === cleanPhone ||
+          (p.length >= 10 && cleanPhone.length >= 10 && (p.endsWith(cleanPhone) || cleanPhone.endsWith(p)));
+
+        // Strict PIN match: matches the contact token or the user's PIN code
+        const storedToken = String(data.publicAccessToken || '').trim();
+        const storedUserPin = String(data.userPin || '').trim();
+        const tokenMatches = storedToken === cleanToken || (storedUserPin && storedUserPin === cleanToken);
+
+        return phoneMatches && tokenMatches;
       });
 
       return matched ? matched.data() : null;
