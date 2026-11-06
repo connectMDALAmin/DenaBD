@@ -119,16 +119,24 @@ export const SettingsView: React.FC = () => {
   const handleSaveAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     soundService.playClick();
-    await updateAppSettings({
-      announcementBanner,
-      announcementText: announcementText.trim(),
-    });
-    setAnnouncementSaveMsg(
-      language === 'bn'
-        ? 'বিজ্ঞাপন ও ব্যানার সফলভাবে আপডেট করা হয়েছে!'
-        : 'Announcement banner updated successfully!'
-    );
-    setTimeout(() => setAnnouncementSaveMsg(null), 3500);
+    try {
+      await updateAppSettings({
+        announcementBanner,
+        announcementText: announcementText.trim(),
+      });
+      setAnnouncementSaveMsg(
+        language === 'bn'
+          ? 'বিজ্ঞাপন সফলভাবে ক্লাউডে সংরক্ষিত হয়েছে! সমস্ত ব্যবহারকারীর ড্যাশবোর্ড ও মেনু বারে এটি প্রদর্শিত হবে।'
+          : 'Advertisement saved to cloud! Now broadcasting on all users’ dashboards and menu bars.'
+      );
+    } catch (err: any) {
+      setAnnouncementSaveMsg(
+        language === 'bn'
+          ? `সংরক্ষণ ব্যর্থ হয়েছে: ${err?.message || 'অনুমতি নেই'}`
+          : `Failed to save: ${err?.message || 'Access denied'}`
+      );
+    }
+    setTimeout(() => setAnnouncementSaveMsg(null), 4000);
   };
 
   const handleConfirmDeleteAllContacts = async () => {

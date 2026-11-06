@@ -103,10 +103,17 @@ class FirebaseSyncService {
     return defaultSettings;
   })();
   private appSettingsSubscribers: Set<(settings: AppSettings) => void> = new Set();
+  private appSettingsUnsub: (() => void) | null = null;
 
   constructor() {
+    const stored = this.getStoredSession();
+    if (stored) {
+      this.currentUser = stored;
+      this.isAdminUser = isOwnerAdminUser(stored);
+    }
     this.initAuthListener();
     this.startAppSettingsListener();
+    this.fetchAppSettingsInitial();
   }
 
   private saveStoredSession(user: AppUser) {
@@ -170,6 +177,8 @@ class FirebaseSyncService {
         }
 
         this.startFirestoreListeners(user.uid);
+        this.startAppSettingsListener();
+        this.fetchAppSettingsInitial();
       } else {
         // Firebase Auth is signed out - clear all user state and local scoped storage
         this.currentUser = null;
@@ -178,6 +187,7 @@ class FirebaseSyncService {
         db.setCurrentUserId(null);
         this.stopFirestoreListeners();
         db.setSyncState('offline');
+        this.startAppSettingsListener();
       }
 
       this.isAuthReady = true;
@@ -1068,9 +1078,16 @@ class FirebaseSyncService {
   }
 
   public startAppSettingsListener(): void {
+    if (this.appSettingsUnsub) {
+      try {
+        this.appSettingsUnsub();
+      } catch (_) {}
+      this.appSettingsUnsub = null;
+    }
+
     try {
       const docRef = doc(firestore, 'app_settings', 'general');
-      const unsub = onSnapshot(
+      this.appSettingsUnsub = onSnapshot(
         docRef,
         (snap) => {
           if (snap.exists()) {
@@ -1083,15 +1100,39 @@ class FirebaseSyncService {
               localStorage.setItem('denapawna_app_settings', JSON.stringify(this.currentAppSettings));
             } catch (_) {}
             this.notifyAppSettingsSubscribers();
+          } else if (this.isAdminUser) {
+            // Seed initial global settings document in Firestore if not created yet
+            setDoc(docRef, this.currentAppSettings, { merge: true }).catch((err) => {
+              console.warn('Initial app_settings creation note:', err);
+            });
           }
         },
         (err) => {
           console.warn('App settings onSnapshot warning (using local/fallback settings):', err.message);
         }
       );
-      this.unsubscribers.push(unsub);
     } catch (err) {
       console.warn('Could not establish app_settings listener:', err);
+    }
+  }
+
+  private async fetchAppSettingsInitial(): Promise<void> {
+    try {
+      const docRef = doc(firestore, 'app_settings', 'general');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        this.currentAppSettings = {
+          ...this.currentAppSettings,
+          ...data,
+        } as AppSettings;
+        try {
+          localStorage.setItem('denapawna_app_settings', JSON.stringify(this.currentAppSettings));
+        } catch (_) {}
+        this.notifyAppSettingsSubscribers();
+      }
+    } catch (err) {
+      console.warn('Initial app_settings fetch note:', err);
     }
   }
 

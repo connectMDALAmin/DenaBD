@@ -14,7 +14,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenNewTransaction,
   onOpenNewContact,
 }) => {
-  const { ledgerSummary, contacts, transactions, setActiveTab, setSelectedContactId } = useApp();
+  const { ledgerSummary, contacts, transactions, setActiveTab, setSelectedContactId, appSettings } = useApp();
   const { t, language } = useI18n();
 
   // Top Debtors (Customers who owe user most)
@@ -39,6 +39,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Admin Global Announcement & Advertisement Banner on Dashboard (Real-time synced across all users) */}
+      {appSettings?.announcementBanner && appSettings?.announcementText?.trim() && (
+        <div className="bg-gradient-to-r from-[#FFFBEB] via-[#FEF3C7] to-[#FDE68A] border-2 border-[#D97706] rounded-[4px] p-2.5 sm:p-3 xp-bevel-outset shadow-xs flex items-center gap-2.5 sm:gap-3">
+          <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-600/40 flex items-center justify-center text-amber-800 shrink-0">
+            <span className="text-base animate-pulse">📢</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="bg-[#B45309] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-2xs uppercase tracking-wide">
+                {language === 'bn' ? 'বিজ্ঞাপন ও নোটিশ' : 'Announcement & Ads'}
+              </span>
+              <span className="text-[10px] text-amber-900 font-semibold">
+                {language === 'bn' ? 'অ্যাডমিন সম্প্রচার' : 'Admin Broadcast'}
+              </span>
+            </div>
+            <p className="text-xs sm:text-[13px] text-[#78350F] font-bold leading-relaxed break-words">
+              {appSettings.announcementText}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Quick Action XP Ribbon */}
       <div className="flex flex-wrap items-center gap-2 p-2 bg-[#ECE9D8] border border-[#7F9DB9] rounded-[4px] xp-bevel-outset">
         <button

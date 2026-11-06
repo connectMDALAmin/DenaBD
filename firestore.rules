@@ -116,9 +116,9 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
-    // Global Application Configuration & System Announcements
+    // Global Application Configuration & System Announcements (Public Read, Admin Write)
     match /app_settings/{settingId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
