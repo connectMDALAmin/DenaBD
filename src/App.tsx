@@ -41,6 +41,10 @@ import { shouldShowDailyIslamicQuote, markDailyIslamicQuoteShown } from './utils
 import { soundService } from './services/sound/soundService';
 import { XPMaintenanceScreen } from './components/xp/XPMaintenanceScreen';
 import { XPNewUserSetupModal } from './components/xp/XPNewUserSetupModal';
+import { XPBootScreen } from './components/xp/XPBootScreen';
+import { MyComputerModal } from './components/xp/MyComputerModal';
+import { MyDocumentsModal } from './components/xp/MyDocumentsModal';
+import { RecycleBinModal } from './components/xp/RecycleBinModal';
 
 const MainAppContent: React.FC = () => {
   const {
@@ -101,6 +105,21 @@ const MainAppContent: React.FC = () => {
   const [isDeveloperInfoOpen, setIsDeveloperInfoOpen] = useState(false);
   const [isLogOffModalOpen, setIsLogOffModalOpen] = useState(false);
   const [isNewUserSetupOpen, setIsNewUserSetupOpen] = useState(false);
+
+  // Desktop System Windows: My Computer, My Documents, Recycle Bin
+  const [isMyComputerOpen, setIsMyComputerOpen] = useState(false);
+  const [isMyDocumentsOpen, setIsMyDocumentsOpen] = useState(false);
+  const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
+
+  // Windows XP Starting Screen realistic animation timer
+  const [isInitialBooting, setIsInitialBooting] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsInitialBooting(false);
+    }, 1400);
+    return () => clearTimeout(timer);
+  }, []);
 
   // New User Onboarding Setup Check:
   // Prompt business setup modal for new users who haven't completed onboarding or have missing business info
@@ -250,30 +269,16 @@ const MainAppContent: React.FC = () => {
     setIsTxModalOpen(true);
   };
 
-  // If Firebase auth is initializing its initial session check
-  if (!isAuthReady) {
+  // Windows XP Starting / Boot Screen with authentic 3-block segmented progress bar
+  if (!isAuthReady || isInitialBooting) {
     return (
-      <div className="w-screen h-screen bg-[#00136B] flex flex-col items-center justify-center text-white">
-        <div className="w-10 h-10 grid grid-cols-2 gap-1 transform -rotate-6 mb-4 filter drop-shadow">
-          <div className="bg-[#E73827] rounded-tl-sm" />
-          <div className="bg-[#7FBA00] rounded-tr-sm" />
-          <div className="bg-[#00A4EF] rounded-bl-sm" />
-          <div className="bg-[#FFB900] rounded-br-sm" />
-        </div>
-        <div className="text-xl font-bold font-serif italic mb-3">
-          Windows<span className="text-[#F18800] ml-1 font-sans not-italic text-sm">xp</span>
-        </div>
-        <div className="w-48 h-3 bg-[#111111] border border-[#555555] rounded-xs p-0.5 overflow-hidden flex items-center">
-          <div className="flex gap-1 animate-pulse">
-            <div className="w-3 h-2 bg-[#2A65FF] rounded-2xs" />
-            <div className="w-3 h-2 bg-[#2A65FF] rounded-2xs" />
-            <div className="w-3 h-2 bg-[#2A65FF] rounded-2xs" />
-          </div>
-        </div>
-        <div className="text-xs text-[#A0C5FF] mt-3">
-          DenaPawna (দেনাপাওনা) — Starting up...
-        </div>
-      </div>
+      <XPBootScreen
+        statusText={
+          language === 'bn'
+            ? 'দেনাপাওনা ডিজিটাল লেজার লোড হচ্ছে...'
+            : 'Starting DenaPawna Digital Ledger...'
+        }
+      />
     );
   }
 
@@ -440,9 +445,41 @@ const MainAppContent: React.FC = () => {
         {/* Desktop Shortcut Icons with responsive wrapping & overflow protection */}
         <aside
           className={`flex-col flex-wrap content-start gap-1 py-1 z-10 shrink-0 max-h-full overflow-y-auto overflow-x-auto no-scrollbar scroll-smooth pr-1 ${
-            !isAppMinimized ? (isMaximized ? 'hidden' : 'hidden md:flex') : 'flex'
+            !isAppMinimized && isMaximized ? 'hidden' : 'flex'
           }`}
         >
+          {/* Classic Windows XP Desktop Icons: Computer, Documents, Recycle Bin */}
+          <XPDesktopIcon
+            name="computer"
+            label={language === 'bn' ? 'আমার কম্পিউটার' : 'My Computer'}
+            sublabel="System"
+            isActive={isMyComputerOpen}
+            onClick={() => {
+              soundService.playClick();
+              setIsMyComputerOpen(true);
+            }}
+          />
+          <XPDesktopIcon
+            name="documents"
+            label={language === 'bn' ? 'আমার ডকুমেন্টস' : 'My Documents'}
+            sublabel="Files"
+            isActive={isMyDocumentsOpen}
+            onClick={() => {
+              soundService.playClick();
+              setIsMyDocumentsOpen(true);
+            }}
+          />
+          <XPDesktopIcon
+            name="recyclebin"
+            label={language === 'bn' ? 'রিসাইকেল বিন' : 'Recycle Bin'}
+            sublabel="Trash"
+            isActive={isRecycleBinOpen}
+            onClick={() => {
+              soundService.playClick();
+              setIsRecycleBinOpen(true);
+            }}
+          />
+
           <XPDesktopIcon
             name="ledger"
             label={t('navDashboard')}
@@ -656,6 +693,50 @@ const MainAppContent: React.FC = () => {
 
           <div className="border-t border-[#E0E0E0] my-1" />
 
+          {/* Open My Computer */}
+          <button
+            type="button"
+            onClick={() => {
+              soundService.playClick();
+              setContextMenuPos(null);
+              setIsMyComputerOpen(true);
+            }}
+            className="w-full text-left px-3 py-1.5 hover:bg-[#316AC5] hover:text-white flex items-center gap-2 cursor-pointer transition-colors"
+          >
+            <XPIcon name="computer" size={15} />
+            <span>{language === 'bn' ? 'আমার কম্পিউটার (My Computer)' : 'Open My Computer'}</span>
+          </button>
+
+          {/* Open My Documents */}
+          <button
+            type="button"
+            onClick={() => {
+              soundService.playClick();
+              setContextMenuPos(null);
+              setIsMyDocumentsOpen(true);
+            }}
+            className="w-full text-left px-3 py-1.5 hover:bg-[#316AC5] hover:text-white flex items-center gap-2 cursor-pointer transition-colors"
+          >
+            <XPIcon name="documents" size={15} />
+            <span>{language === 'bn' ? 'আমার ডকুমেন্টস (My Documents)' : 'Open My Documents'}</span>
+          </button>
+
+          {/* Open Recycle Bin */}
+          <button
+            type="button"
+            onClick={() => {
+              soundService.playClick();
+              setContextMenuPos(null);
+              setIsRecycleBinOpen(true);
+            }}
+            className="w-full text-left px-3 py-1.5 hover:bg-[#316AC5] hover:text-white flex items-center gap-2 cursor-pointer transition-colors"
+          >
+            <XPIcon name="recyclebin" size={15} />
+            <span>{language === 'bn' ? 'রিসাইকেল বিন (Recycle Bin)' : 'Open Recycle Bin'}</span>
+          </button>
+
+          <div className="border-t border-[#E0E0E0] my-1" />
+
           {/* Google Search / Browser */}
           <button
             type="button"
@@ -853,6 +934,29 @@ const MainAppContent: React.FC = () => {
       <XPNewUserSetupModal
         isOpen={isNewUserSetupOpen}
         onClose={() => setIsNewUserSetupOpen(false)}
+      />
+
+      {/* My Computer System Properties Modal */}
+      <MyComputerModal
+        isOpen={isMyComputerOpen}
+        onClose={() => setIsMyComputerOpen(false)}
+      />
+
+      {/* My Documents Statements & Vault Modal */}
+      <MyDocumentsModal
+        isOpen={isMyDocumentsOpen}
+        onClose={() => setIsMyDocumentsOpen(false)}
+        onOpenPrint={() => setIsPrintModalOpen(true)}
+        onOpenBackup={() => {
+          setIsAppMinimized(false);
+          setActiveTab('backup');
+        }}
+      />
+
+      {/* Recycle Bin Modal */}
+      <RecycleBinModal
+        isOpen={isRecycleBinOpen}
+        onClose={() => setIsRecycleBinOpen(false)}
       />
     </>
   );

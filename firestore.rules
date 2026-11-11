@@ -122,6 +122,18 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Site Analytics & Page Visit Tracking (Public Read & Increment)
+    match /site_analytics/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Real-Time Online Presence & Heartbeat (Public Heartbeat & Read)
+    match /online_presence/{presenceId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // User Profiles & Management
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();

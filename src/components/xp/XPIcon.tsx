@@ -18,7 +18,10 @@ interface XPIconProps {
     | 'print'
     | 'help'
     | 'browser'
-    | 'sync';
+    | 'sync'
+    | 'computer'
+    | 'recyclebin'
+    | 'documents';
   className?: string;
   size?: number;
 }
@@ -177,6 +180,64 @@ export const XPIcon: React.FC<XPIconProps> = ({ name, className = '', size = 24 
         <svg width={size} height={size} viewBox="0 0 32 32" fill="none" className={className}>
           <path d="M6 16C6 10.5 10.5 6 16 6C20 6 23.5 8.5 25 12M25 6V12H19" stroke="#2E7D32" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
           <path d="M26 16C26 21.5 21.5 26 16 26C12 26 8.5 23.5 7 20M7 26V20H13" stroke="#2E7D32" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+
+    case 'computer':
+      return (
+        <svg width={size} height={size} viewBox="0 0 32 32" fill="none" className={className}>
+          {/* CRT Monitor */}
+          <rect x="4" y="4" width="24" height="18" rx="2" fill="#D6DFE8" stroke="#5E789B" strokeWidth="1.5" />
+          <rect x="6.5" y="6.5" width="19" height="13" rx="1" fill="#0055EA" />
+          {/* Screen Glass highlight & content */}
+          <path d="M7 7L16 16H25V7H7Z" fill="#2A7BFF" opacity="0.6" />
+          <rect x="8" y="15" width="4" height="3" rx="0.5" fill="#FFFFFF" opacity="0.8" />
+          {/* Stand */}
+          <path d="M13 22H19V25H13V22Z" fill="#B0C2D6" stroke="#5E789B" strokeWidth="1" />
+          <path d="M8 25H24V28C24 28.5 23.5 29 23 29H9C8.5 29 8 28.5 8 28V25Z" fill="#8EA3BE" stroke="#486282" strokeWidth="1" />
+          <line x1="10" y1="27" x2="22" y2="27" stroke="#BACCE2" strokeWidth="1" />
+        </svg>
+      );
+
+    case 'recyclebin':
+      return (
+        <svg width={size} height={size} viewBox="0 0 32 32" fill="none" className={className}>
+          {/* Bin Container */}
+          <path d="M8 9L10 27C10.2 28.5 11.5 29 13 29H19C20.5 29 21.8 28.5 22 27L24 9H8Z" fill="#B8C8D9" stroke="#526A85" strokeWidth="1.5" />
+          <ellipse cx="16" cy="9" rx="8.5" ry="2.5" fill="#E2EDF7" stroke="#526A85" strokeWidth="1.2" />
+          {/* Mesh / Vertical Stripes */}
+          <line x1="12" y1="12" x2="13" y2="26" stroke="#7A93AF" strokeWidth="1.2" />
+          <line x1="16" y1="12" x2="16" y2="26" stroke="#7A93AF" strokeWidth="1.2" />
+          <line x1="20" y1="12" x2="19" y2="26" stroke="#7A93AF" strokeWidth="1.2" />
+          {/* Recycling Green Mobius loop / symbol */}
+          <circle cx="16" cy="18" r="4.5" fill="#E8F5E9" opacity="0.9" />
+          <path d="M14 15.5L16 14L18 15.5" stroke="#2E7D32" strokeWidth="1.2" strokeLinecap="round" />
+          <path d="M18 17L19 19L17.5 20.5" stroke="#2E7D32" strokeWidth="1.2" strokeLinecap="round" />
+          <path d="M15 20.5L13 20L13.5 18" stroke="#2E7D32" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'documents':
+      return (
+        <svg width={size} height={size} viewBox="0 0 32 32" fill="none" className={className}>
+          {/* Folder Back Tab */}
+          <path d="M4 8C4 6.9 4.9 6 6 6H13L16 9H26C27.1 9 28 9.9 28 11V25C28 26.1 27.1 27 26 27H6C4.9 27 4 26.1 4 25V8Z" fill="#E8A735" stroke="#A66E15" strokeWidth="1.2" />
+          {/* Document Sheet sticking out */}
+          <rect x="9" y="8" width="14" height="15" rx="1" fill="#FFFFFF" stroke="#888888" strokeWidth="1" />
+          <line x1="12" y1="12" x2="20" y2="12" stroke="#2A7BFF" strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="12" y1="15" x2="18" y2="15" stroke="#777777" strokeWidth="1" strokeLinecap="round" />
+          <line x1="12" y1="18" x2="19" y2="18" stroke="#777777" strokeWidth="1" strokeLinecap="round" />
+          {/* Folder Front Leaf */}
+          <path d="M4 14C4 12.9 4.9 12 6 12H26C27.1 12 28 12.9 28 14L27 25C27 26.1 26.1 27 25 27H7C5.9 27 5 26.1 4.9 25L4 14Z" fill="#F8C758" stroke="#B87B19" strokeWidth="1.2" />
+        </svg>
+      );
+
+    case 'help':
+      return (
+        <svg width={size} height={size} viewBox="0 0 32 32" fill="none" className={className}>
+          <circle cx="16" cy="16" r="13" fill="#0055EA" stroke="#003399" strokeWidth="1.5" />
+          <circle cx="16" cy="16" r="10" fill="#2A7BFF" />
+          <text x="16" y="22" fontSize="16" fontWeight="bold" fontFamily="sans-serif" fill="#FFFFFF" textAnchor="middle">?</text>
         </svg>
       );
 

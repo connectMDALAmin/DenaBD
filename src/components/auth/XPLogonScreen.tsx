@@ -13,9 +13,11 @@ import {
   User,
   Store,
   Search,
+  Eye,
 } from 'lucide-react';
 import { soundService } from '../../services/sound/soundService';
 import { PublicLookupModal } from './PublicLookupModal';
+import { analyticsService } from '../../services/analytics/analyticsService';
 
 export const XPLogonScreen: React.FC = () => {
   const {
@@ -25,6 +27,18 @@ export const XPLogonScreen: React.FC = () => {
     sendPasswordReset,
   } = useApp();
   const { language, setLanguage } = useI18n();
+
+  // Lifetime Page Visits State
+  const [lifetimeVisits, setLifetimeVisits] = useState<number>(() =>
+    analyticsService.getLifetimeVisitsSync()
+  );
+
+  React.useEffect(() => {
+    const unsub = analyticsService.subscribeLifetimeVisits((cnt) => {
+      setLifetimeVisits(cnt);
+    });
+    return () => unsub();
+  }, []);
 
   const [loading, setLoading] = useState(false);
   const [loadingType, setLoadingType] = useState<'google' | 'email-login' | 'email-register' | 'forgot-password' | null>(null);
@@ -253,8 +267,19 @@ export const XPLogonScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Header Buttons: Language Selector */}
+        {/* Right Header Buttons: Lifetime Visits & Language Selector */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Lifetime Page Visits Counter Badge */}
+          <div className="flex items-center gap-1.5 bg-[#001744] border border-[#2B54A6] px-2 py-0.5 rounded shadow-inner select-none">
+            <Eye size={12} className="text-[#38BDF8]" />
+            <span className="text-[10px] text-[#A0C5FF] font-medium hidden xs:inline">
+              {language === 'bn' ? 'আজীবন ভিজিট:' : 'Lifetime Visits:'}
+            </span>
+            <span className="font-mono font-bold text-[11px] bg-black text-[#00FF66] px-1.5 py-0.2 rounded border border-[#005522] tracking-wider drop-shadow-[0_0_4px_rgba(0,255,102,0.8)]">
+              {lifetimeVisits.toLocaleString()}
+            </span>
+          </div>
+
           {/* Language Toggle */}
           <div className="flex items-center gap-1 bg-[#002266] border border-[#2B54A6] rounded p-0.5 text-xs">
             <button
@@ -781,6 +806,15 @@ export const XPLogonScreen: React.FC = () => {
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           <span>Firebase Cloud Live • Offline Ready</span>
+        </div>
+
+        {/* Lifetime Page Visits in Footer */}
+        <div className="flex items-center gap-1.5 text-[#82B1FF] bg-[#001744]/70 px-2.5 py-0.5 rounded border border-[#1D4A9E]">
+          <Eye size={12} className="text-[#38BDF8]" />
+          <span>{language === 'bn' ? 'মোট আজীবন পেজ ভিজিট:' : 'Total Lifetime Visits:'}</span>
+          <span className="font-mono font-bold text-white bg-black/80 px-1.5 py-0.2 rounded border border-blue-900 text-[10px]">
+            {lifetimeVisits.toLocaleString()}
+          </span>
         </div>
 
         <div className="text-center text-[#82B1FF]">

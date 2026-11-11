@@ -234,3 +234,24 @@
 .xp-marquee-text:hover {
   animation-play-state: paused;
 }
+
+/* Windows XP Authentic Boot Screen Progress Bar Slider */
+@keyframes xpBootSlider {
+  0% {
+    transform: translateX(-56px);
+  }
+  50% {
+    transform: translateX(110px);
+  }
+  100% {
+    transform: translateX(280px);
+  }
+}
+
+.xp-boot-bar-blocks {
+  display: flex;
+  gap: 3px;
+  animation: xpBootSlider 1.6s ease-in-out infinite;
+  will-change: transform;
+}
+

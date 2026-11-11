@@ -18,7 +18,13 @@ import {
   Server,
   Database,
   Save,
+  Clock,
+  Calendar,
+  Eye,
+  BarChart3,
+  Radio,
 } from 'lucide-react';
+import { analyticsService } from '../../services/analytics/analyticsService';
 
 export const AdminPanelView: React.FC = () => {
   const { firebaseUser, isAdmin, setActiveTab } = useApp();
@@ -28,6 +34,11 @@ export const AdminPanelView: React.FC = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+
+  // Live Visitor & User Statistics States
+  const [liveUsersCount, setLiveUsersCount] = useState<number>(1);
+  const [dailyVisits, setDailyVisits] = useState<number>(0);
+  const [lifetimeVisits, setLifetimeVisits] = useState<number>(() => analyticsService.getLifetimeVisitsSync());
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -40,14 +51,16 @@ export const AdminPanelView: React.FC = () => {
     try {
       setLoading(true);
       setErrorMsg(null);
-      const [loadedUsers, loadedLogs, loadedSettings] = await Promise.all([
+      const [loadedUsers, loadedLogs, loadedSettings, todayVisits] = await Promise.all([
         firebaseSync.getAllUsers(),
         firebaseSync.getAdminAuditLogs(),
         firebaseSync.getAppSettings(),
+        analyticsService.getDailyVisits(),
       ]);
       setUsers(loadedUsers);
       setAuditLogs(loadedLogs);
       setAppSettings(loadedSettings);
+      setDailyVisits(todayVisits);
     } catch (err: any) {
       console.error('Error loading admin panel data:', err);
       setErrorMsg(err?.message || 'Access Denied: Backend rejected administrative query.');
@@ -59,6 +72,19 @@ export const AdminPanelView: React.FC = () => {
   useEffect(() => {
     if (isAdmin) {
       loadAdminData();
+
+      // Subscribe to real-time live presence & lifetime visits
+      const unsubLive = analyticsService.subscribeLiveUsers((count) => {
+        setLiveUsersCount(count);
+      });
+      const unsubLifetime = analyticsService.subscribeLifetimeVisits((count) => {
+        setLifetimeVisits(count);
+      });
+
+      return () => {
+        unsubLive();
+        unsubLifetime();
+      };
     }
   }, [isAdmin]);
 
@@ -239,6 +265,132 @@ export const AdminPanelView: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* Real-time System Metrics & Visitor Analytics Dashboard Ribbon */}
+      {(() => {
+        const metrics = analyticsService.calculateMetrics(users, dailyVisits, liveUsersCount);
+        return (
+          <div className="bg-[#D8D4C2] border-b border-[#B8B4A2] p-2 sm:p-2.5 shrink-0">
+            <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-[#C4C0AE]">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[#003399]">
+                <Activity size={14} className="text-[#0055EA]" />
+                <span>
+                  {language === 'bn'
+                    ? 'রিয়েল-টাইম ইউজার ও ভিজিটর অ্যানালিটিক্স'
+                    : 'Real-Time User & Visitor Analytics'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                  <span>LIVE PRESENCE</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+              {/* Metric 1: Live User Count */}
+              <div className="bg-white p-2 rounded-[3px] border border-[#7F9DB9] xp-bevel-inset flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium">
+                  <span>{language === 'bn' ? 'লাইভ ইউজার' : 'Live Online'}</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                </div>
+                <div className="text-lg sm:text-xl font-bold font-mono text-emerald-600 my-0.5 flex items-baseline gap-1">
+                  <span>{metrics.liveUsers}</span>
+                  <span className="text-[10px] font-sans font-normal text-gray-400">now</span>
+                </div>
+                <div className="text-[9px] text-emerald-700 font-semibold bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                  ● {language === 'bn' ? 'এই মুহূর্তে অনলাইনে' : 'Online Right Now'}
+                </div>
+              </div>
+
+              {/* Metric 2: Daily Users */}
+              <div className="bg-white p-2 rounded-[3px] border border-[#7F9DB9] xp-bevel-inset flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium">
+                  <span>{language === 'bn' ? 'দৈনিক ইউজার' : 'Daily Users'}</span>
+                  <Clock size={11} className="text-blue-500" />
+                </div>
+                <div className="text-lg sm:text-xl font-bold font-mono text-blue-700 my-0.5">
+                  {metrics.dailyUsers}
+                </div>
+                <div className="text-[9px] text-blue-700 font-semibold bg-blue-50 px-1 py-0.2 rounded border border-blue-200">
+                  {language === 'bn' ? '২৪ ঘণ্টায় সক্রিয়' : 'Past 24 Hours'}
+                </div>
+              </div>
+
+              {/* Metric 3: Weekly Users */}
+              <div className="bg-white p-2 rounded-[3px] border border-[#7F9DB9] xp-bevel-inset flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium">
+                  <span>{language === 'bn' ? 'সাপ্তাহিক ইউজার' : 'Weekly Users'}</span>
+                  <Calendar size={11} className="text-purple-500" />
+                </div>
+                <div className="text-lg sm:text-xl font-bold font-mono text-purple-700 my-0.5">
+                  {metrics.weeklyUsers}
+                </div>
+                <div className="text-[9px] text-purple-700 font-semibold bg-purple-50 px-1 py-0.2 rounded border border-purple-200">
+                  {language === 'bn' ? '৭ দিনে সক্রিয়' : 'Past 7 Days'}
+                </div>
+              </div>
+
+              {/* Metric 4: Active Users */}
+              <div className="bg-white p-2 rounded-[3px] border border-[#7F9DB9] xp-bevel-inset flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium">
+                  <span>{language === 'bn' ? 'সক্রিয় অ্যাকাউন্ট' : 'Active Accounts'}</span>
+                  <UserCheck size={11} className="text-teal-500" />
+                </div>
+                <div className="text-lg sm:text-xl font-bold font-mono text-teal-700 my-0.5">
+                  {metrics.activeUsers}
+                </div>
+                <div className="text-[9px] text-teal-700 font-semibold bg-teal-50 px-1 py-0.2 rounded border border-teal-200">
+                  {language === 'bn' ? 'স্বাভাবিক এক্টিভ' : 'Status: Active'}
+                </div>
+              </div>
+
+              {/* Metric 5: Total Users */}
+              <div className="bg-white p-2 rounded-[3px] border border-[#7F9DB9] xp-bevel-inset flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium">
+                  <span>{language === 'bn' ? 'সর্বমোট ইউজার' : 'Total Users'}</span>
+                  <Users size={11} className="text-[#0055EA]" />
+                </div>
+                <div className="text-lg sm:text-xl font-bold font-mono text-gray-900 my-0.5">
+                  {metrics.totalUsers}
+                </div>
+                <div className="text-[9px] text-gray-600 font-semibold bg-gray-100 px-1 py-0.2 rounded border border-gray-200">
+                  {language === 'bn' ? 'মোট অ্যাকাউন্ট' : 'Total Accounts'}
+                </div>
+              </div>
+
+              {/* Metric 6: Daily Page Visitors */}
+              <div className="bg-white p-2 rounded-[3px] border border-[#7F9DB9] xp-bevel-inset flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium">
+                  <span>{language === 'bn' ? 'দৈনিক পেজ ভিজিট' : 'Daily Visits'}</span>
+                  <Eye size={11} className="text-amber-500" />
+                </div>
+                <div className="text-lg sm:text-xl font-bold font-mono text-amber-700 my-0.5">
+                  {metrics.dailyVisits}
+                </div>
+                <div className="text-[9px] text-amber-800 font-semibold bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
+                  {language === 'bn' ? 'আজকের পেজ ভিউ' : "Today's Hits"}
+                </div>
+              </div>
+
+              {/* Metric 7: Lifetime Page Visits */}
+              <div className="bg-white p-2 rounded-[3px] border border-[#7F9DB9] xp-bevel-inset flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium">
+                  <span>{language === 'bn' ? 'আজীবন ভিজিট' : 'Lifetime Visits'}</span>
+                  <BarChart3 size={11} className="text-indigo-500" />
+                </div>
+                <div className="text-lg sm:text-xl font-bold font-mono text-indigo-700 my-0.5">
+                  {metrics.lifetimeVisits.toLocaleString()}
+                </div>
+                <div className="text-[9px] text-indigo-700 font-semibold bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200">
+                  {language === 'bn' ? 'মোট অল-টাইম' : 'All-Time Total'}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Classic XP Tabbed Navigation */}
       <div className="flex items-center gap-1 px-3 pt-2 bg-[#DED9C7] border-b border-[#7F9DB9] shrink-0">
