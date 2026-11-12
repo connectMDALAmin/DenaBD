@@ -377,7 +377,7 @@ class DatabaseService {
 
     const isDemoT = (t: Transaction) =>
       t.id.startsWith('tx_0') ||
-      demoContactIds.has(t.contactId) ||
+      (t.contactId ? demoContactIds.has(t.contactId) : false) ||
       initialTransactions.some((it) => it.id === t.id);
 
     const demoTransactions = currentTransactions.filter(isDemoT);
@@ -406,7 +406,7 @@ class DatabaseService {
 
     const isDemoT = (t: Transaction) =>
       t.id.startsWith('tx_0') ||
-      demoContactIds.has(t.contactId) ||
+      (t.contactId ? demoContactIds.has(t.contactId) : false) ||
       initialTransactions.some((it) => it.id === t.id);
 
     const demoTransactions = currentTransactions.filter(isDemoT);

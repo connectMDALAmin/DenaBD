@@ -5,6 +5,10 @@ import { useI18n } from '../../i18n/I18nContext';
 import { toMinorUnits, fromMinorUnits, calculateContactBalance } from '../../services/accounting/calculator';
 import { triggerSettlementCelebration } from '../../utils/confetti';
 import { XPTitleBar } from '../../components/xp/XPTitleBar';
+import {
+  PREDEFINED_EXPENSE_CATEGORIES,
+  COMMON_TRANSACTION_CATEGORIES,
+} from '../../services/expenses/expenseCategories';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -12,6 +16,7 @@ interface TransactionModalProps {
   onSave: (txData: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
   initialTransaction?: Transaction | null;
   preselectedContactId?: string | null;
+  initialType?: TransactionType;
 }
 
 export const TransactionModal: React.FC<TransactionModalProps> = ({
@@ -20,6 +25,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   onSave,
   initialTransaction,
   preselectedContactId,
+  initialType,
 }) => {
   const { contacts, transactions } = useApp();
   const { t, language } = useI18n();
@@ -30,7 +36,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
-  const [category, setCategory] = useState<string>('পণ্য বিক্রয়');
+  const [category, setCategory] = useState<string>('goods_sale');
+  const [customCategory, setCustomCategory] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [referenceNumber, setReferenceNumber] = useState<string>('');
 
@@ -41,13 +48,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   useEffect(() => {
     if (initialTransaction) {
-      setContactId(initialTransaction.contactId);
+      setContactId(initialTransaction.contactId || '');
       setType(initialTransaction.type);
       setAmountStr(String(fromMinorUnits(initialTransaction.amount)));
       setDate(initialTransaction.date);
       setDueDate(initialTransaction.dueDate || '');
-      setPaymentMethod(initialTransaction.paymentMethod);
-      setCategory(initialTransaction.category);
+      setPaymentMethod(initialTransaction.paymentMethod || 'cash');
+
+      // Check if category matches predefined or common
+      const isPredefined = PREDEFINED_EXPENSE_CATEGORIES.some((c) => c.id === initialTransaction.category);
+      const isCommon = COMMON_TRANSACTION_CATEGORIES.some((c) => c.id === initialTransaction.category);
+      if (isPredefined || isCommon) {
+        setCategory(initialTransaction.category);
+        setCustomCategory('');
+      } else {
+        setCategory('custom');
+        setCustomCategory(initialTransaction.category || '');
+      }
+
       setNotes(initialTransaction.notes || '');
       setReferenceNumber(initialTransaction.referenceNumber || '');
       if (initialTransaction.installments && initialTransaction.installments.length > 0) {
@@ -59,19 +77,27 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         setInstallments([]);
       }
     } else {
-      setContactId(preselectedContactId || (contacts[0]?.id || ''));
-      setType('given');
+      const targetType = initialType || (preselectedContactId === 'expense' ? 'expense' : 'given');
+      if (targetType === 'expense') {
+        setType('expense');
+        setContactId('');
+        setCategory('grocery_shopping');
+      } else {
+        setContactId(preselectedContactId || (contacts[0]?.id || ''));
+        setType(targetType);
+        setCategory('goods_sale');
+      }
       setAmountStr('');
       setDate(new Date().toISOString().split('T')[0]);
       setDueDate('');
       setPaymentMethod('cash');
-      setCategory(language === 'bn' ? 'পণ্য বাকি বিক্রয়' : 'Credit Sale');
+      setCustomCategory('');
       setNotes('');
       setReferenceNumber('');
       setHasInstallments(false);
       setInstallments([]);
     }
-  }, [initialTransaction, preselectedContactId, isOpen, contacts, language]);
+  }, [initialTransaction, preselectedContactId, isOpen, contacts]);
 
   // Regenerate installments if enabled or amount/count changes
   const handleGenerateInstallments = () => {
@@ -104,9 +130,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   if (!isOpen) return null;
 
+  const isExpense = type === 'expense';
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contactId) {
+
+    if (!isExpense && !contactId) {
       alert(language === 'bn' ? 'অনুগ্রহ করে কন্ট্যাক্ট নির্বাচন করুন' : 'Please select a contact');
       return;
     }
@@ -119,95 +148,94 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
     const minorUnits = toMinorUnits(decVal);
 
-    // Overpayment prevention check from Pawna
-    const selectedContact = contacts.find((c) => c.id === contactId);
-    if (selectedContact) {
-      const summary = calculateContactBalance(selectedContact, transactions);
-      if (type === 'received' && summary.receivable > 0 && minorUnits > summary.receivable) {
-        const excess = fromMinorUnits(minorUnits - summary.receivable).toFixed(2);
-        const confirmOverpay = confirm(
-          language === 'bn'
-            ? `সতর্কতা: পরিশোধের পরিমাণ বকেয়া পাওনা (৳${fromMinorUnits(summary.receivable).toFixed(2)}) অপেক্ষা ৳${excess} বেশি। আপনি কি অতিরিক্ত অর্থ অগ্রিম হিসেবে গ্রহণ করতে চান?`
-            : `Warning: Received amount exceeds outstanding receivable by ৳${excess}. Do you want to record this excess amount as an advance?`
-        );
-        if (!confirmOverpay) return;
-      } else if (type === 'repaid' && summary.payable > 0 && minorUnits > summary.payable) {
-        const excess = fromMinorUnits(minorUnits - summary.payable).toFixed(2);
-        const confirmOverpay = confirm(
-          language === 'bn'
-            ? `সতর্কতা: পরিশোধের পরিমাণ দেনা (৳${fromMinorUnits(summary.payable).toFixed(2)}) অপেক্ষা ৳${excess} বেশি। আপনি কি এই লেনদেন রেকর্ড করতে চান?`
-            : `Warning: Repayment amount exceeds payable balance by ৳${excess}. Do you want to proceed?`
-        );
-        if (!confirmOverpay) return;
-      }
+    // Resolve category
+    let finalCategory = category;
+    if (category === 'custom') {
+      finalCategory = customCategory.trim() || (isExpense ? 'other_expenses' : 'general');
+    }
 
-      // Check if this fully settles the account
-      if (
-        (type === 'received' && minorUnits >= summary.receivable && summary.receivable > 0) ||
-        (type === 'repaid' && minorUnits >= summary.payable && summary.payable > 0)
-      ) {
-        triggerSettlementCelebration();
+    // Overpayment prevention check only for contacts
+    if (!isExpense && contactId) {
+      const selectedContact = contacts.find((c) => c.id === contactId);
+      if (selectedContact) {
+        const summary = calculateContactBalance(selectedContact, transactions);
+        if (type === 'received' && summary.receivable > 0 && minorUnits > summary.receivable) {
+          const excess = fromMinorUnits(minorUnits - summary.receivable).toFixed(2);
+          const confirmOverpay = confirm(
+            language === 'bn'
+              ? `সতর্কতা: পরিশোধের পরিমাণ বকেয়া পাওনা (৳${fromMinorUnits(summary.receivable).toFixed(2)}) অপেক্ষা ৳${excess} বেশি। আপনি কি অতিরিক্ত অর্থ অগ্রিম হিসেবে গ্রহণ করতে চান?`
+              : `Warning: Received amount exceeds outstanding receivable by ৳${excess}. Do you want to record this excess amount as an advance?`
+          );
+          if (!confirmOverpay) return;
+        } else if (type === 'repaid' && summary.payable > 0 && minorUnits > summary.payable) {
+          const excess = fromMinorUnits(minorUnits - summary.payable).toFixed(2);
+          const confirmOverpay = confirm(
+            language === 'bn'
+              ? `সতর্কতা: পরিশোধের পরিমাণ দেনা (৳${fromMinorUnits(summary.payable).toFixed(2)}) অপেক্ষা ৳${excess} বেশি। আপনি কি এই লেনদেন রেকর্ড করতে চান?`
+              : `Warning: Repayment amount exceeds payable balance by ৳${excess}. Do you want to proceed?`
+          );
+          if (!confirmOverpay) return;
+        }
+
+        // Check if this fully settles the account
+        if (
+          (type === 'received' && minorUnits >= summary.receivable && summary.receivable > 0) ||
+          (type === 'repaid' && minorUnits >= summary.payable && summary.payable > 0)
+        ) {
+          triggerSettlementCelebration();
+        }
       }
     }
 
     onSave({
       id: initialTransaction?.id,
       userId: initialTransaction?.userId || 'user_main_01',
-      contactId,
+      contactId: isExpense ? '' : contactId,
       type,
       amount: minorUnits,
       date,
-      dueDate: dueDate || undefined,
+      dueDate: !isExpense && dueDate ? dueDate : undefined,
       paymentMethod,
-      category,
+      category: finalCategory,
       notes: notes.trim() || undefined,
       referenceNumber: referenceNumber.trim() || undefined,
       status: initialTransaction?.status || 'active',
-      installments: hasInstallments && installments.length > 0 ? installments : undefined,
+      installments: !isExpense && hasInstallments && installments.length > 0 ? installments : undefined,
     });
 
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40 backdrop-blur-xs animate-in fade-in duration-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40 backdrop-blur-xs animate-in fade-in duration-100 select-none">
       <div className="w-full max-w-lg bg-[#ECE9D8] border-[3px] border-[#0055EA] rounded-[7px] xp-window-shadow overflow-hidden text-xs max-h-[95vh] flex flex-col">
         {/* Title Bar */}
         <XPTitleBar
-          title={initialTransaction ? t('editTransaction') : t('addTransaction')}
+          title={
+            initialTransaction
+              ? (isExpense ? (language === 'bn' ? 'খরচ সম্পাদনা' : 'Edit Expense') : t('editTransaction'))
+              : (isExpense ? (language === 'bn' ? 'নতুন ব্যক্তিগত খরচ' : 'Add Personal Expense') : t('addTransaction'))
+          }
           iconName="money"
           onClose={onClose}
         />
 
         <form onSubmit={handleSubmit} className="p-4 space-y-3 overflow-y-auto">
-          {/* Contact Selector */}
+          {/* 5 Transaction Type Segmented Options */}
           <div>
             <label className="block text-gray-800 font-semibold mb-1">
-              {t('contactName')} *
+              {language === 'bn' ? 'লেনদেনের ধরণ / Transaction Type *' : 'Transaction Type *'}
             </label>
-            <select
-              value={contactId}
-              onChange={(e) => setContactId(e.target.value)}
-              className="w-full px-2 py-1.5 bg-white border border-[#7F9DB9] xp-bevel-inset text-xs outline-none"
-              required
-            >
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.phone}) - {c.category.toUpperCase()}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* 4 Transaction Type Segmented Options */}
-          <div>
-            <label className="block text-gray-800 font-semibold mb-1">
-              হিসাবের ধরণ / Transaction Type *
-            </label>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
               <button
                 type="button"
-                onClick={() => setType('given')}
+                onClick={() => {
+                  setType('given');
+                  if (!contactId && contacts[0]?.id) setContactId(contacts[0].id);
+                  if (PREDEFINED_EXPENSE_CATEGORIES.some((c) => c.id === category)) {
+                    setCategory('goods_sale');
+                  }
+                }}
                 className={`py-2 px-2 rounded-[3px] border text-left cursor-pointer transition ${
                   type === 'given'
                     ? 'bg-[#0055EA] text-white font-bold border-[#003B99] shadow-sm'
@@ -215,12 +243,18 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 }`}
               >
                 <div className="text-xs font-semibold">{t('typeGiven')}</div>
-                <div className="text-[10px] opacity-80">দেওয়া হলো (তারা দেনাদার)</div>
+                <div className="text-[10px] opacity-80">{language === 'bn' ? 'দেওয়া হলো (পাওনা +)' : 'Money Given (+)'}</div>
               </button>
 
               <button
                 type="button"
-                onClick={() => setType('received')}
+                onClick={() => {
+                  setType('received');
+                  if (!contactId && contacts[0]?.id) setContactId(contacts[0].id);
+                  if (PREDEFINED_EXPENSE_CATEGORIES.some((c) => c.id === category)) {
+                    setCategory('goods_sale');
+                  }
+                }}
                 className={`py-2 px-2 rounded-[3px] border text-left cursor-pointer transition ${
                   type === 'received'
                     ? 'bg-[#2E7D32] text-white font-bold border-[#1B5E20] shadow-sm'
@@ -228,12 +262,18 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 }`}
               >
                 <div className="text-xs font-semibold">{t('typeReceived')}</div>
-                <div className="text-[10px] opacity-80">আদায় হলো (পাওনা হ্রাস)</div>
+                <div className="text-[10px] opacity-80">{language === 'bn' ? 'আদায় হলো (পাওনা -)' : 'Received (-)'}</div>
               </button>
 
               <button
                 type="button"
-                onClick={() => setType('borrowed')}
+                onClick={() => {
+                  setType('borrowed');
+                  if (!contactId && contacts[0]?.id) setContactId(contacts[0].id);
+                  if (PREDEFINED_EXPENSE_CATEGORIES.some((c) => c.id === category)) {
+                    setCategory('goods_purchase');
+                  }
+                }}
                 className={`py-2 px-2 rounded-[3px] border text-left cursor-pointer transition ${
                   type === 'borrowed'
                     ? 'bg-[#E65100] text-white font-bold border-[#BF360C] shadow-sm'
@@ -241,12 +281,18 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 }`}
               >
                 <div className="text-xs font-semibold">{t('typeBorrowed')}</div>
-                <div className="text-[10px] opacity-80">ধার নেওয়া হলো (দেনা বৃদ্ধি)</div>
+                <div className="text-[10px] opacity-80">{language === 'bn' ? 'ধার নেওয়া (দেনা +)' : 'Borrowed (+)'}</div>
               </button>
 
               <button
                 type="button"
-                onClick={() => setType('repaid')}
+                onClick={() => {
+                  setType('repaid');
+                  if (!contactId && contacts[0]?.id) setContactId(contacts[0].id);
+                  if (PREDEFINED_EXPENSE_CATEGORIES.some((c) => c.id === category)) {
+                    setCategory('goods_purchase');
+                  }
+                }}
                 className={`py-2 px-2 rounded-[3px] border text-left cursor-pointer transition ${
                   type === 'repaid'
                     ? 'bg-[#6A1B9A] text-white font-bold border-[#4A148C] shadow-sm'
@@ -254,16 +300,68 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 }`}
               >
                 <div className="text-xs font-semibold">{t('typeRepaid')}</div>
-                <div className="text-[10px] opacity-80">ফেরত দেওয়া হলো (দেনা হ্রাস)</div>
+                <div className="text-[10px] opacity-80">{language === 'bn' ? 'পরিশোধ (দেনা -)' : 'Repaid (-)'}</div>
+              </button>
+
+              {/* 5th Option: PERSONAL EXPENSE */}
+              <button
+                type="button"
+                onClick={() => {
+                  setType('expense');
+                  setContactId('');
+                  if (!PREDEFINED_EXPENSE_CATEGORIES.some((c) => c.id === category)) {
+                    setCategory('grocery_shopping');
+                  }
+                }}
+                className={`col-span-2 sm:col-span-1 py-2 px-2 rounded-[3px] border text-left cursor-pointer transition ${
+                  type === 'expense'
+                    ? 'bg-[#DC2626] text-white font-bold border-[#991B1B] shadow-sm ring-1 ring-red-300'
+                    : 'bg-red-50 text-red-900 border-red-300 hover:bg-red-100'
+                }`}
+              >
+                <div className="text-xs font-bold flex items-center gap-1">
+                  <span>💸</span>
+                  <span>{language === 'bn' ? 'ব্যক্তিগত খরচ (-)' : 'Expense (-)'}</span>
+                </div>
+                <div className="text-[10px] opacity-85">
+                  {language === 'bn' ? 'ব্যক্তিগত ব্যয় (নো কন্ট্যাক্ট)' : 'Personal Spending'}
+                </div>
               </button>
             </div>
           </div>
+
+          {/* Contact Selector - ONLY shown for customer/vendor Debt transactions */}
+          {!isExpense && (
+            <div>
+              <label className="block text-gray-800 font-semibold mb-1">
+                {t('contactName')} *
+              </label>
+              <select
+                value={contactId}
+                onChange={(e) => setContactId(e.target.value)}
+                className="w-full px-2 py-1.5 bg-white border border-[#7F9DB9] xp-bevel-inset text-xs outline-none"
+                required
+              >
+                {contacts.length === 0 ? (
+                  <option value="">{language === 'bn' ? 'কোনো কন্ট্যাক্ট নেই' : 'No contacts available'}</option>
+                ) : (
+                  contacts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.phone}) - {c.category.toUpperCase()}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+          )}
 
           {/* Amount & Date */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-gray-800 font-semibold mb-1">
-                {t('amount')} (৳) *
+                {isExpense
+                  ? (language === 'bn' ? 'খরচের পরিমাণ (Amount ৳) *' : 'Expense Amount (৳) *')
+                  : `${t('amount')} (৳) *`}
               </label>
               <input
                 type="number"
@@ -313,48 +411,84 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
             <div>
               <label className="block text-gray-800 font-semibold mb-1">
-                {t('category')}
+                {isExpense
+                  ? (language === 'bn' ? 'খরচের খাত (Expense Category) *' : 'Expense Category *')
+                  : `${t('category')} *`}
               </label>
-              <input
-                type="text"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="e.g. পণ্য বিক্রয়, চালান নং, ঋণ"
-                className="w-full px-2 py-1.5 bg-white border border-[#7F9DB9] xp-bevel-inset text-xs outline-none"
-              />
+              {isExpense ? (
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-white border border-[#7F9DB9] xp-bevel-inset text-xs outline-none font-semibold cursor-pointer"
+                  required
+                >
+                  {PREDEFINED_EXPENSE_CATEGORIES.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.icon} {language === 'bn' ? cat.nameBn : cat.nameEn}
+                    </option>
+                  ))}
+                  <option value="custom">✏️ {language === 'bn' ? 'অন্যান্য কাস্টম খাত (Custom)' : 'Custom Category'}</option>
+                </select>
+              ) : (
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-white border border-[#7F9DB9] xp-bevel-inset text-xs outline-none font-semibold cursor-pointer"
+                >
+                  {COMMON_TRANSACTION_CATEGORIES.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {language === 'bn' ? cat.nameBn : cat.nameEn}
+                    </option>
+                  ))}
+                  <option value="custom">✏️ {language === 'bn' ? 'অন্যান্য কাস্টম খাত (Custom)' : 'Custom Category'}</option>
+                </select>
+              )}
+
+              {category === 'custom' && (
+                <input
+                  type="text"
+                  required
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  placeholder={language === 'bn' ? 'খাতের নাম লিখুন' : 'Enter category name'}
+                  className="mt-1.5 w-full px-2 py-1 bg-white border border-[#7F9DB9] xp-bevel-inset text-xs outline-none"
+                />
+              )}
             </div>
           </div>
 
-          {/* Due Date & Invoice Ref */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-gray-800 font-semibold mb-1">
-                {t('dueDate')} (Optional)
-              </label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full px-2 py-1.5 bg-white border border-[#7F9DB9] xp-bevel-inset text-xs font-mono outline-none"
-              />
-            </div>
+          {/* Due Date & Invoice Ref (Hidden for Expense) */}
+          <div className={`grid grid-cols-1 ${!isExpense ? 'sm:grid-cols-2' : ''} gap-3`}>
+            {!isExpense && (
+              <div>
+                <label className="block text-gray-800 font-semibold mb-1">
+                  {t('dueDate')} (Optional)
+                </label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-white border border-[#7F9DB9] xp-bevel-inset text-xs font-mono outline-none"
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-gray-800 font-semibold mb-1">
-                {t('referenceNumber')}
+                {t('referenceNumber')} (Optional)
               </label>
               <input
                 type="text"
                 value={referenceNumber}
                 onChange={(e) => setReferenceNumber(e.target.value)}
-                placeholder="INV-2026-001"
+                placeholder="INV-2026-001 / Receipt #"
                 className="w-full px-2 py-1.5 bg-white border border-[#7F9DB9] xp-bevel-inset text-xs font-mono outline-none"
               />
             </div>
           </div>
 
-          {/* Installment Planner (Optional) */}
-          {type === 'given' && (
+          {/* Installment Planner (Only for given debt) */}
+          {!isExpense && type === 'given' && (
             <div className="p-3 bg-white border border-[#7F9DB9] rounded-[3px] xp-bevel-inset">
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 cursor-pointer font-semibold text-gray-800">
@@ -410,19 +544,21 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           {/* Notes */}
           <div>
             <label className="block text-gray-800 font-semibold mb-1">
-              {t('notes')}
+              {t('notes')} (Optional)
             </label>
             <input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. ৫০ বস্তা চাল সরবরাহ"
+              placeholder={isExpense
+                ? (language === 'bn' ? 'খরচের বিবরণ বা বিস্তারিত লিখুন' : 'Expense description or remarks')
+                : 'e.g. ৫০ বস্তা চাল সরবরাহ'}
               className="w-full px-2 py-1.5 bg-white border border-[#7F9DB9] xp-bevel-inset text-xs outline-none"
             />
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#D0CCB8]">
+          {/* Form Actions */}
+          <div className="pt-2 flex justify-end gap-2 border-t border-[#D4D0C8]">
             <button
               type="button"
               onClick={onClose}
@@ -432,9 +568,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </button>
             <button
               type="submit"
-              className="xp-button-primary px-5 py-1.5 text-xs cursor-pointer"
+              className={`${
+                isExpense ? 'bg-[#DC2626] hover:bg-[#B91C1C] border-[#991B1B]' : 'xp-button-primary'
+              } px-5 py-1.5 text-xs font-bold text-white cursor-pointer shadow-xs rounded-[3px]`}
             >
-              {t('save')}
+              {isExpense
+                ? (language === 'bn' ? 'খরচ সংরক্ষণ করুন' : 'Save Expense')
+                : t('save')}
             </button>
           </div>
         </form>

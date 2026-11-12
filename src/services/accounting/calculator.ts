@@ -3,7 +3,12 @@
  * Pure mathematical functions using safe integer minor currency units.
  */
 
-import { Contact, Transaction, ContactSummary, LedgerSummary } from '../../types/accounting';
+import { Contact, Transaction, ContactSummary, LedgerSummary, ExpenseSummary } from '../../types/accounting';
+import {
+  getExpenseCategoryLabel,
+  getExpenseCategoryColor,
+  getExpenseCategoryIcon,
+} from '../expenses/expenseCategories';
 
 /**
  * Converts a decimal monetary amount (e.g., 150.50) to integer minor currency units (e.g., 15050)
@@ -226,7 +231,7 @@ export function computeMonthlyCashFlowTrends(transactions: Transaction[]) {
         const val = fromMinorUnits(tx.amount);
         if (tx.type === 'received' || tx.type === 'borrowed') {
           monthsMap[monthKey].inflow += val;
-        } else {
+        } else if (tx.type === 'given' || tx.type === 'repaid') {
           monthsMap[monthKey].outflow += val;
         }
 
@@ -236,4 +241,119 @@ export function computeMonthlyCashFlowTrends(transactions: Transaction[]) {
     });
 
   return Object.values(monthsMap);
+}
+
+/**
+ * Calculates complete Personal Expense metrics strictly isolated from customer ledger
+ */
+export function calculateExpenseSummary(
+  transactions: Transaction[],
+  date = new Date(),
+  lang: 'en' | 'bn' = 'en'
+): ExpenseSummary {
+  const todayStr = date.toISOString().split('T')[0];
+  const monthPrefix = todayStr.substring(0, 7); // YYYY-MM
+  const yearPrefix = todayStr.substring(0, 4); // YYYY
+
+  const expenseTxs = transactions.filter(
+    (tx) => tx.type === 'expense' && tx.status !== 'cancelled'
+  );
+
+  let todayTotal = 0;
+  let thisMonthTotal = 0;
+  let thisYearTotal = 0;
+  let allTimeTotal = 0;
+
+  const catMap: Record<string, { total: number; count: number }> = {};
+  const methodMap: Record<string, { total: number; count: number }> = {};
+
+  expenseTxs.forEach((tx) => {
+    const amt = tx.amount || 0;
+    allTimeTotal += amt;
+
+    if (tx.date === todayStr) {
+      todayTotal += amt;
+    }
+    if (tx.date.startsWith(monthPrefix)) {
+      thisMonthTotal += amt;
+    }
+    if (tx.date.startsWith(yearPrefix)) {
+      thisYearTotal += amt;
+    }
+
+    const catKey = tx.category || 'other_expenses';
+    if (!catMap[catKey]) {
+      catMap[catKey] = { total: 0, count: 0 };
+    }
+    catMap[catKey].total += amt;
+    catMap[catKey].count += 1;
+
+    const method = tx.paymentMethod || 'cash';
+    if (!methodMap[method]) {
+      methodMap[method] = { total: 0, count: 0 };
+    }
+    methodMap[method].total += amt;
+    methodMap[method].count += 1;
+  });
+
+  // Recent 10 expenses sorted by date desc, createdAt desc
+  const recentExpenses = [...expenseTxs]
+    .sort((a, b) => {
+      const dComp = b.date.localeCompare(a.date);
+      if (dComp !== 0) return dComp;
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
+    })
+    .slice(0, 10);
+
+  // Category totals array with percentage
+  const categoryTotals = Object.entries(catMap)
+    .map(([catId, data]) => ({
+      categoryId: catId,
+      categoryLabel: getExpenseCategoryLabel(catId, lang),
+      total: data.total,
+      count: data.count,
+      percentage: allTimeTotal > 0 ? Math.round((data.total / allTimeTotal) * 100) : 0,
+      color: getExpenseCategoryColor(catId),
+      icon: getExpenseCategoryIcon(catId),
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  // Monthly summary for last 6 months
+  const monthlySummary: { monthKey: string; monthLabel: string; total: number; count: number }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(date.getFullYear(), date.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-US', { month: 'short' });
+    let mTotal = 0;
+    let mCount = 0;
+    expenseTxs.forEach((tx) => {
+      if (tx.date.startsWith(key)) {
+        mTotal += tx.amount;
+        mCount += 1;
+      }
+    });
+    monthlySummary.push({
+      monthKey: key,
+      monthLabel: label,
+      total: mTotal,
+      count: mCount,
+    });
+  }
+
+  const paymentMethodTotals = Object.entries(methodMap).map(([method, data]) => ({
+    method: method as any,
+    total: data.total,
+    count: data.count,
+  }));
+
+  return {
+    todayTotal,
+    thisMonthTotal,
+    thisYearTotal,
+    allTimeTotal,
+    recentExpenses,
+    categoryTotals,
+    monthlySummary,
+    paymentMethodTotals,
+  };
 }

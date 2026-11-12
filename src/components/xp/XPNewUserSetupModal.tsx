@@ -34,7 +34,36 @@ export const XPNewUserSetupModal: React.FC<XPNewUserSetupModalProps> = ({ isOpen
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Sync inputs if userProfile loads asynchronously from cloud
+  React.useEffect(() => {
+    if (userProfile.businessName && userProfile.businessName !== 'আমার ব্যবসা') {
+      setBusinessName(userProfile.businessName);
+    }
+    if (userProfile.ownerName && userProfile.ownerName !== 'ব্যবহারকারী') {
+      setOwnerName(userProfile.ownerName);
+    } else if (firebaseUser?.displayName && !ownerName) {
+      setOwnerName(firebaseUser.displayName);
+    }
+    if (userProfile.phone) {
+      setPhone(userProfile.phone);
+    }
+    if (userProfile.address) {
+      setAddress(userProfile.address);
+    }
+  }, [userProfile.businessName, userProfile.ownerName, userProfile.phone, userProfile.address, firebaseUser?.displayName]);
+
   if (!isOpen) return null;
+
+  const handleDismiss = () => {
+    soundService.playClick();
+    if (firebaseUser?.uid) {
+      localStorage.setItem(`denapawna_setup_dismissed_${firebaseUser.uid}`, 'true');
+    }
+    saveUserProfile({
+      onboardingCompleted: true,
+    });
+    onClose();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,6 +90,9 @@ export const XPNewUserSetupModal: React.FC<XPNewUserSetupModalProps> = ({ isOpen
 
     try {
       soundService.playClick();
+      if (firebaseUser?.uid) {
+        localStorage.setItem(`denapawna_setup_dismissed_${firebaseUser.uid}`, 'true');
+      }
       await saveUserProfile({
         businessName: cleanBusiness,
         ownerName: cleanOwner,
@@ -87,7 +119,7 @@ export const XPNewUserSetupModal: React.FC<XPNewUserSetupModalProps> = ({ isOpen
         <XPTitleBar
           title={language === 'bn' ? 'ব্যবসায়িক খাতা সেটআপ উইজার্ড — দেনাপাওনা' : 'Business Setup Wizard — DenaPawna'}
           iconName="settings"
-          onClose={onClose}
+          onClose={handleDismiss}
         />
 
         {/* Wizard Header Banner */}
@@ -196,7 +228,7 @@ export const XPNewUserSetupModal: React.FC<XPNewUserSetupModalProps> = ({ isOpen
           <div className="pt-2 flex items-center justify-between border-t border-[#D4D0C8]">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleDismiss}
               className="xp-button px-3.5 py-1.5 text-xs text-gray-700 cursor-pointer"
             >
               {language === 'bn' ? 'পরে করব' : 'Skip for now'}

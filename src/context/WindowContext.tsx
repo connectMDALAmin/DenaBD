@@ -25,6 +25,7 @@ const defaultWindows: Record<ActiveTab, WindowInstance> = {
   dashboard: { id: 'dashboard', title: 'Dashboard', isMinimized: false, isMaximized: true, zIndex: 10 },
   contacts: { id: 'contacts', title: 'Contacts Directory', isMinimized: false, isMaximized: false, zIndex: 1 },
   ledger: { id: 'ledger', title: 'Ledger Khata', isMinimized: false, isMaximized: false, zIndex: 1 },
+  expenses: { id: 'expenses', title: 'Personal Expense Management', isMinimized: false, isMaximized: false, zIndex: 1 },
   reminders: { id: 'reminders', title: 'Reminders & Due', isMinimized: false, isMaximized: false, zIndex: 1 },
   analytics: { id: 'analytics', title: 'Financial Analytics', isMinimized: false, isMaximized: false, zIndex: 1 },
   publicLookup: { id: 'publicLookup', title: 'Public Balance Lookup', isMinimized: false, isMaximized: false, zIndex: 1 },

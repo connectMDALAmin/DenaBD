@@ -30,6 +30,7 @@ export const translations = {
 
     // Top Navigation / Taskbar
     navDashboard: 'ড্যাশবোর্ড',
+    navExpenses: 'খরচের হিসাব',
     navContacts: 'কন্ট্যাক্ট ডিরেক্টরি',
     navLedger: 'হিসাব খাতা',
     navReminders: 'তাকিদা ও কিস্তি',
@@ -38,6 +39,15 @@ export const translations = {
     navBackup: 'ব্যাকআপ ও রিস্টোর',
     navSettings: 'সেটিংস ও নিরাপত্তা',
     navAndroidBuild: 'অ্যান্ড্রয়েড নির্দেশিকা',
+    expense: 'ব্যক্তিগত খরচ',
+    expenses: 'খরচের হিসাব',
+    addExpense: 'নতুন খরচ',
+    todayExpense: 'আজকের খরচ',
+    thisMonthExpense: 'চলতি মাসের খরচ',
+    thisYearExpense: 'চলতি বছরের খরচ',
+    allTimeExpense: 'সর্বমোট খরচ',
+    topSpendingCategories: 'শীর্ষ খরচের খাতসমূহ',
+    monthlyExpenseSummary: 'মাসিক খরচের সারসংক্ষেপ',
 
     // Financial Metrics
     receivables: 'মোট পাওনা (বাকি)',
@@ -191,6 +201,7 @@ export const translations = {
 
     // Top Navigation / Taskbar
     navDashboard: 'Dashboard',
+    navExpenses: 'Expenses',
     navContacts: 'Contacts',
     navLedger: 'Ledger Khata',
     navReminders: 'Reminders & Due',
@@ -199,6 +210,15 @@ export const translations = {
     navBackup: 'Backup & Restore',
     navSettings: 'Settings & Security',
     navAndroidBuild: 'Android APK Guide',
+    expense: 'Personal Expense',
+    expenses: 'Expenses',
+    addExpense: 'New Expense',
+    todayExpense: "Today's Expense",
+    thisMonthExpense: "This Month's Expense",
+    thisYearExpense: "This Year's Expense",
+    allTimeExpense: 'All-Time Expense',
+    topSpendingCategories: 'Top Spending Categories',
+    monthlyExpenseSummary: 'Monthly Expense Summary',
 
     // Financial Metrics
     receivables: 'Total Receivables (Pawna)',

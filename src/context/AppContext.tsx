@@ -7,6 +7,7 @@ import { soundService } from '../services/sound/soundService';
 
 export type ActiveTab =
   | 'dashboard'
+  | 'expenses'
   | 'contacts'
   | 'ledger'
   | 'reminders'
@@ -35,7 +36,17 @@ interface AppContextType {
   isAuthReady: boolean;
   isAdmin: boolean;
   signInWithGoogle: () => Promise<AppUser>;
-  signUpWithEmail: (email: string, password: string, displayName: string, businessName?: string) => Promise<AppUser>;
+  signUpWithEmail: (
+    email: string,
+    password: string,
+    displayName: string,
+    businessName?: string,
+    options?: {
+      phone?: string;
+      address?: string;
+      accountCategory?: 'personal' | 'business' | 'small_shop';
+    }
+  ) => Promise<AppUser>;
   signInWithEmail: (email: string, password: string) => Promise<AppUser>;
   sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -214,8 +225,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const getDemoDataCounts = () => db.getDemoDataCounts();
 
   const signInWithGoogle = () => firebaseSync.signInWithGoogle();
-  const signUpWithEmail = (email: string, password: string, displayName: string, businessName?: string) =>
-    firebaseSync.signUpWithEmail(email, password, displayName, businessName);
+  const signUpWithEmail = (
+    email: string,
+    password: string,
+    displayName: string,
+    businessName?: string,
+    options?: {
+      phone?: string;
+      address?: string;
+      accountCategory?: 'personal' | 'business' | 'small_shop';
+    }
+  ) => firebaseSync.signUpWithEmail(email, password, displayName, businessName, options);
   const signInWithEmail = (email: string, password: string) =>
     firebaseSync.signInWithEmail(email, password);
   const sendPasswordReset = (email: string) =>

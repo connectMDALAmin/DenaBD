@@ -14,6 +14,8 @@ import {
   Store,
   Search,
   Eye,
+  Phone,
+  MapPin,
 } from 'lucide-react';
 import { soundService } from '../../services/sound/soundService';
 import { PublicLookupModal } from './PublicLookupModal';
@@ -49,11 +51,14 @@ export const XPLogonScreen: React.FC = () => {
   const [authMode, setAuthMode] = useState<'google' | 'email-login' | 'email-register' | 'forgot-password'>('google');
 
   // Email form fields
+  const [accountType, setAccountType] = useState<'personal' | 'business' | 'small_shop'>('personal');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [businessName, setBusinessName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
   const [resetEmail, setResetEmail] = useState('');
 
   // Public Search Modal state
@@ -192,16 +197,41 @@ export const XPLogonScreen: React.FC = () => {
       return;
     }
 
+    if (accountType !== 'personal') {
+      if (!businessName.trim()) {
+        setErrorMsg(language === 'bn' ? 'দোকান বা ব্যবসার নাম প্রদান করুন।' : 'Please enter shop or business name.');
+        return;
+      }
+      if (!phone.trim()) {
+        setErrorMsg(language === 'bn' ? 'মোবাইল নম্বর প্রদান করুন।' : 'Please enter mobile phone number.');
+        return;
+      }
+      if (!address.trim()) {
+        setErrorMsg(language === 'bn' ? 'দোকান বা ব্যবসার ঠিকানা লিখুন।' : 'Please enter business address.');
+        return;
+      }
+    }
+
     try {
       setLoading(true);
       setLoadingType('email-register');
       setErrorMsg(null);
       setSuccessMsg(null);
+
+      const resolvedBusiness = accountType === 'personal'
+        ? (businessName.trim() || (language === 'bn' ? 'ব্যক্তিগত হিসাব' : 'Personal Ledger'))
+        : businessName.trim();
+
       await signUpWithEmail(
         email,
         password,
         displayName || email.split('@')[0],
-        businessName || (language === 'bn' ? 'আমার ব্যবসা প্রতিষ্ঠান' : 'My Business')
+        resolvedBusiness,
+        {
+          phone: phone.trim(),
+          address: address.trim(),
+          accountCategory: accountType,
+        }
       );
       setSuccessMsg(language === 'bn' ? 'রেজিস্ট্রেশন সফল হয়েছে! স্বাগতম।' : 'Registration successful! Welcome.');
       soundService.playLogon();
@@ -267,18 +297,20 @@ export const XPLogonScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Header Buttons: Lifetime Visits & Language Selector */}
+        {/* Right Header Buttons: Search Transaction & Language Selector */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Lifetime Page Visits Counter Badge */}
-          <div className="flex items-center gap-1.5 bg-[#001744] border border-[#2B54A6] px-2 py-0.5 rounded shadow-inner select-none">
-            <Eye size={12} className="text-[#38BDF8]" />
-            <span className="text-[10px] text-[#A0C5FF] font-medium hidden xs:inline">
-              {language === 'bn' ? 'আজীবন ভিজিট:' : 'Lifetime Visits:'}
+          {/* Search Transaction by Phone Number */}
+          <button
+            type="button"
+            onClick={() => setShowPublicLookup(true)}
+            className="flex items-center gap-1.5 bg-[#002266] hover:bg-[#316AC5] border border-[#2B54A6] rounded px-2.5 py-1 text-[11px] font-bold text-white transition-colors cursor-pointer shadow-xs"
+            title="Search Transaction by Phone Number"
+          >
+            <Search size={13} className="text-[#F2A900]" />
+            <span className="whitespace-nowrap">
+              Search Transaction by Phone Number
             </span>
-            <span className="font-mono font-bold text-[11px] bg-black text-[#00FF66] px-1.5 py-0.2 rounded border border-[#005522] tracking-wider drop-shadow-[0_0_4px_rgba(0,255,102,0.8)]">
-              {lifetimeVisits.toLocaleString()}
-            </span>
-          </div>
+          </button>
 
           {/* Language Toggle */}
           <div className="flex items-center gap-1 bg-[#002266] border border-[#2B54A6] rounded p-0.5 text-xs">
@@ -331,22 +363,6 @@ export const XPLogonScreen: React.FC = () => {
                 : 'Sign in with Google or Email. All ledger transactions sync in real-time to Cloud Firestore and remain cached offline on your phone or PC.'}
             </p>
 
-            {/* Quick Public Customer Search Action Link */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => setShowPublicLookup(true)}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 border border-amber-400 rounded text-xs font-bold text-white shadow-md cursor-pointer transition"
-              >
-                <Search size={14} />
-                <span>
-                  {language === 'bn'
-                    ? 'কাস্টমার পাবলিক খাতা অনুসন্ধান (লগইন ছাড়া দেখুন)'
-                    : 'Customer Public Balance Search (No Login Required)'}
-                </span>
-              </button>
-            </div>
-
             {/* Feature Highlights with XP bullets */}
             <div className="space-y-2 pt-2 text-xs sm:text-sm text-[#D6E6FF]">
               <div className="flex items-center gap-2 justify-center md:justify-start">
@@ -376,7 +392,7 @@ export const XPLogonScreen: React.FC = () => {
                   <div>
                     <h2 className="font-bold text-xs sm:text-sm text-[#003399]">
                       {authMode === 'google'
-                        ? language === 'bn' ? 'লগ-অন উইন্ডো (Windows XP)' : 'Log On to Windows'
+                        ? 'লগ-অন DenaPawna'
                         : authMode === 'email-login'
                         ? language === 'bn' ? 'ইমেইল দিয়ে লগইন করুন' : 'Email Sign-In'
                         : authMode === 'email-register'
@@ -598,10 +614,47 @@ export const XPLogonScreen: React.FC = () => {
               {/* TAB 3: NEW ACCOUNT REGISTRATION */}
               {authMode === 'email-register' && (
                 <form onSubmit={handleEmailSignUp} className="space-y-2.5">
+                  {/* Account Category Dropdown */}
+                  <div>
+                    <label className="block text-gray-700 font-bold text-[11px] mb-0.5 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Store size={12} className="text-[#0055EA]" />
+                        <span>{language === 'bn' ? 'অ্যাকাউন্টের ধরন / ক্যাটাগরি:' : 'Account Category:'}</span>
+                      </span>
+                      <span className="text-[10px] text-[#0055EA] font-semibold">
+                        {accountType === 'personal'
+                          ? (language === 'bn' ? 'ব্যক্তিগত' : 'Personal')
+                          : accountType === 'business'
+                          ? (language === 'bn' ? 'ব্যবসা' : 'Business')
+                          : (language === 'bn' ? 'ছোট দোকান' : 'Small Shop')}
+                      </span>
+                    </label>
+                    <select
+                      value={accountType}
+                      onChange={(e) => setAccountType(e.target.value as any)}
+                      className="w-full px-2 py-1.5 bg-white border border-[#7F9DB9] text-xs font-sans outline-none focus:border-[#0055EA] rounded-[2px] font-semibold cursor-pointer"
+                    >
+                      <option value="personal">
+                        {language === 'bn' ? '👤 ব্যক্তিগত / পার্সোনাল (Personal / Individual)' : '👤 Personal / Individual'}
+                      </option>
+                      <option value="business">
+                        {language === 'bn' ? '🏢 ব্যবসা প্রতিষ্ঠান / কোম্পানি (Business Enterprise)' : '🏢 Business Enterprise'}
+                      </option>
+                      <option value="small_shop">
+                        {language === 'bn' ? '🏪 ছোট দোকান / ফার্মেসী / মুদি (Small Shop)' : '🏪 Small Shop / Store'}
+                      </option>
+                    </select>
+                  </div>
+
+                  {/* Full Name / Proprietor Name */}
                   <div>
                     <label className="block text-gray-700 font-bold text-[11px] mb-0.5 flex items-center gap-1">
                       <User size={12} className="text-[#0055EA]" />
-                      <span>{language === 'bn' ? 'আপনার পূর্ণ নাম:' : 'Full Name:'}</span>
+                      <span>
+                        {accountType === 'personal'
+                          ? (language === 'bn' ? 'আপনার পূর্ণ নাম:' : 'Full Name:')
+                          : (language === 'bn' ? 'মালিক / প্রোপাইটরের নাম: *' : 'Owner / Proprietor Name: *')}
+                      </span>
                     </label>
                     <input
                       type="text"
@@ -613,19 +666,62 @@ export const XPLogonScreen: React.FC = () => {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-gray-700 font-bold text-[11px] mb-0.5 flex items-center gap-1">
-                      <Store size={12} className="text-[#0055EA]" />
-                      <span>{language === 'bn' ? 'দোকান বা ব্যবসার নাম:' : 'Business / Shop Name:'}</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={businessName}
-                      onChange={(e) => setBusinessName(e.target.value)}
-                      placeholder={language === 'bn' ? 'ভাই ভাই ট্রেডার্স' : 'Bhai Bhai Traders'}
-                      className="w-full px-2 py-1 bg-white border border-[#7F9DB9] text-xs font-sans outline-none focus:border-[#0055EA] rounded-[2px]"
-                    />
-                  </div>
+                  {/* If Business or Small Shop: Require Shop/Business Name, Phone, and Address */}
+                  {accountType !== 'personal' && (
+                    <>
+                      <div>
+                        <label className="block text-gray-700 font-bold text-[11px] mb-0.5 flex items-center gap-1">
+                          <Store size={12} className="text-[#0055EA]" />
+                          <span>
+                            {accountType === 'small_shop'
+                              ? (language === 'bn' ? 'দোকানের নাম: *' : 'Shop / Store Name: *')
+                              : (language === 'bn' ? 'ব্যবসা / প্রতিষ্ঠানের নাম: *' : 'Business / Company Name: *')}
+                          </span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={businessName}
+                          onChange={(e) => setBusinessName(e.target.value)}
+                          placeholder={accountType === 'small_shop'
+                            ? (language === 'bn' ? 'মেসার্স ভাই ভাই স্টোর' : 'Bhai Bhai General Store')
+                            : (language === 'bn' ? 'আল-মদিনা এন্টারপ্রাইজ' : 'Al-Madina Enterprise')}
+                          className="w-full px-2 py-1 bg-white border border-[#7F9DB9] text-xs font-sans outline-none focus:border-[#0055EA] rounded-[2px]"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-gray-700 font-bold text-[11px] mb-0.5 flex items-center gap-1">
+                            <Phone size={12} className="text-[#0055EA]" />
+                            <span>{language === 'bn' ? 'মোবাইল নম্বর: *' : 'Phone Number: *'}</span>
+                          </label>
+                          <input
+                            type="tel"
+                            required
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            placeholder="+880 1712-345678"
+                            className="w-full px-2 py-1 bg-white border border-[#7F9DB9] text-xs font-sans outline-none focus:border-[#0055EA] rounded-[2px]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-gray-700 font-bold text-[11px] mb-0.5 flex items-center gap-1">
+                            <MapPin size={12} className="text-[#0055EA]" />
+                            <span>{language === 'bn' ? 'ঠিকানা / এলাকা: *' : 'Business Address: *'}</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={address}
+                            onChange={(e) => setAddress(e.target.value)}
+                            placeholder={language === 'bn' ? 'নিউ মার্কেট, ঢাকা' : 'New Market, Dhaka'}
+                            className="w-full px-2 py-1 bg-white border border-[#7F9DB9] text-xs font-sans outline-none focus:border-[#0055EA] rounded-[2px]"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   <div>
                     <label className="block text-gray-700 font-bold text-[11px] mb-0.5 flex items-center gap-1">
@@ -637,7 +733,7 @@ export const XPLogonScreen: React.FC = () => {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="business@gmail.com"
+                      placeholder="user@gmail.com"
                       className="w-full px-2 py-1 bg-white border border-[#7F9DB9] text-xs font-sans outline-none focus:border-[#0055EA] rounded-[2px]"
                     />
                   </div>

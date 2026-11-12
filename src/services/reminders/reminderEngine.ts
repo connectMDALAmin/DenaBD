@@ -30,7 +30,7 @@ export function getDueReminderItems(
   transactions
     .filter((tx) => tx.status === 'active' && tx.type === 'given') // Only money owed TO user (receivables)
     .forEach((tx) => {
-      const contact = contactMap.get(tx.contactId);
+      const contact = tx.contactId ? contactMap.get(tx.contactId) : undefined;
       if (!contact) return;
 
       // Check installments first

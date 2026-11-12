@@ -92,7 +92,7 @@ export function exportFullExcelReport(
   transactions.forEach((t) => {
     txData.push([
       t.date,
-      contactMap.get(t.contactId) || 'Unknown',
+      t.contactId ? contactMap.get(t.contactId) || 'Unknown' : 'Personal Expense',
       t.type,
       fromMinorUnits(t.amount),
       t.paymentMethod.toUpperCase(),
@@ -123,7 +123,7 @@ export function exportFullExcelReport(
     .forEach((t) => {
       repData.push([
         t.date,
-        contactMap.get(t.contactId) || 'Unknown',
+        t.contactId ? contactMap.get(t.contactId) || 'Unknown' : 'Personal',
         t.type === 'received' ? 'টাকা পাওয়া গেছে (Customer Repaid)' : 'টাকা ফেরত দেওয়া হয়েছে (Repaid to Supplier)',
         fromMinorUnits(t.amount),
         t.paymentMethod.toUpperCase(),

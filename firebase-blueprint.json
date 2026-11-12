@@ -8,8 +8,13 @@
         "id": { "type": "string", "description": "Auth UID of the user" },
         "email": { "type": "string", "format": "email", "description": "Email address of user" },
         "displayName": { "type": "string", "description": "Full name or owner name" },
+        "ownerName": { "type": "string", "description": "Proprietor or owner name" },
         "phoneNumber": { "type": "string", "description": "Contact number" },
+        "phone": { "type": "string", "description": "Phone number" },
         "businessName": { "type": "string", "description": "Name of shop or ledger" },
+        "address": { "type": "string", "description": "Business or shop address" },
+        "onboardingCompleted": { "type": "boolean", "description": "Whether onboarding setup was completed" },
+        "userPin": { "type": "string", "description": "Public lookup security PIN" },
         "role": { "type": "string", "description": "admin or user" },
         "status": { "type": "string", "description": "active or suspended" },
         "lastLoginAt": { "type": "string", "description": "ISO timestamp" },
@@ -80,20 +85,24 @@
     },
     "Transaction": {
       "title": "Transaction",
-      "description": "Given or taken financial debt record",
+      "description": "Financial ledger record (given, received, borrowed, repaid, or personal expense)",
       "type": "object",
       "properties": {
         "id": { "type": "string", "description": "Unique transaction ID" },
         "userId": { "type": "string", "description": "Owner user UID" },
-        "personId": { "type": "string", "description": "Associated person ID" },
-        "type": { "type": "string", "enum": ["give", "take"], "description": "give (pawna) or take (dena)" },
+        "personId": { "type": "string", "description": "Associated person ID (optional for personal expenses)" },
+        "type": { "type": "string", "description": "given, received, borrowed, repaid, or expense" },
         "amount": { "type": "number", "description": "Amount in BDT" },
         "date": { "type": "string", "description": "Transaction date YYYY-MM-DD" },
         "dueDate": { "type": "string", "description": "Promise date YYYY-MM-DD" },
+        "category": { "type": "string", "description": "Transaction or expense category" },
+        "paymentMethod": { "type": "string", "description": "Payment method" },
+        "notes": { "type": "string", "description": "Notes & description" },
+        "referenceNumber": { "type": "string", "description": "Receipt or reference number" },
         "description": { "type": "string", "description": "Transaction purpose" },
         "createdAt": { "type": "string", "description": "ISO timestamp" }
       },
-      "required": ["id", "userId", "personId", "type", "amount", "date", "createdAt"]
+      "required": ["id", "userId", "type", "amount", "date", "createdAt"]
     },
     "Repayment": {
       "title": "Repayment",

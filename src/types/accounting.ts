@@ -2,7 +2,7 @@
  * Domain types for DenaPawna Accounting Engine
  */
 
-export type TransactionType = 'given' | 'received' | 'borrowed' | 'repaid';
+export type TransactionType = 'given' | 'received' | 'borrowed' | 'repaid' | 'expense';
 
 export type ContactCategory = 'customer' | 'supplier' | 'friend_family' | 'employee' | 'other';
 
@@ -23,7 +23,7 @@ export interface Installment {
 export interface Transaction {
   id: string;
   userId: string;
-  contactId: string;
+  contactId?: string; // Optional for personal expenses
   type: TransactionType;
   amount: number; // Integer minor currency units (e.g., 50000 = 500.00 BDT)
   date: string; // YYYY-MM-DD
@@ -102,6 +102,35 @@ export interface UserProfile {
   createdAt: string;
   updatedAt: string;
   onboardingCompleted?: boolean;
+  accountCategory?: 'personal' | 'business' | 'small_shop';
+}
+
+export interface ExpenseSummary {
+  todayTotal: number;
+  thisMonthTotal: number;
+  thisYearTotal: number;
+  allTimeTotal: number;
+  recentExpenses: Transaction[];
+  categoryTotals: {
+    categoryId: string;
+    categoryLabel: string;
+    total: number;
+    count: number;
+    percentage: number;
+    color: string;
+    icon: string;
+  }[];
+  monthlySummary: {
+    monthKey: string;
+    monthLabel: string;
+    total: number;
+    count: number;
+  }[];
+  paymentMethodTotals: {
+    method: PaymentMethod;
+    total: number;
+    count: number;
+  }[];
 }
 
 export interface BackupData {

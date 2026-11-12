@@ -13,9 +13,9 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [language, setLanguageState] = useState<Language>(() => {
     try {
       const saved = localStorage.getItem('denapawna_lang');
-      return saved === 'en' || saved === 'bn' ? (saved as Language) : 'bn';
+      return saved === 'en' || saved === 'bn' ? (saved as Language) : 'en';
     } catch {
-      return 'bn';
+      return 'en';
     }
   });
 

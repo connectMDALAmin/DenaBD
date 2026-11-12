@@ -203,6 +203,11 @@ class FirebaseSyncService {
       let currentStatus: 'active' | 'suspended' = 'active';
       let createdAt = new Date().toISOString();
       let existingBusinessName = (options?.businessName || '').trim();
+      let existingOwnerName = '';
+      let existingPhone = '';
+      let existingAddress = '';
+      let existingOnboardingCompleted: boolean | undefined = undefined;
+      let existingUserPin = '';
 
       try {
         const userSnap = await getDoc(userDocRef);
@@ -212,6 +217,21 @@ class FirebaseSyncService {
           if (data.status === 'suspended') currentStatus = 'suspended';
           if (data.createdAt) createdAt = data.createdAt;
           if (!existingBusinessName && data.businessName) existingBusinessName = data.businessName;
+          if (data.ownerName || data.displayName) existingOwnerName = (data.ownerName || data.displayName).trim();
+          if (data.phoneNumber || data.phone) existingPhone = (data.phoneNumber || data.phone).trim();
+          if (data.address) existingAddress = data.address.trim();
+          if (typeof data.onboardingCompleted === 'boolean') {
+            existingOnboardingCompleted = data.onboardingCompleted;
+          } else {
+            // Established user without explicit flag: automatically mark true
+            existingOnboardingCompleted = true;
+          }
+          if (data.userPin || data.pinCode) existingUserPin = (data.userPin || data.pinCode).trim();
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(`denapawna_setup_dismissed_${user.uid}`, 'true');
+            }
+          } catch (_) {}
         }
       } catch (e) {
         console.warn('Could not read existing user doc from Firestore:', e);
@@ -234,34 +254,51 @@ class FirebaseSyncService {
       }
 
       const now = new Date().toISOString();
+      const resolvedOwner = existingOwnerName || user.displayName || user.email?.split('@')[0] || 'User';
+      const resolvedPhone = existingPhone || user.phoneNumber || '';
       const profilePayload: Record<string, any> = {
         id: user.uid,
         email: (user.email || '').trim().slice(0, 128),
-        displayName: (user.displayName || user.email?.split('@')[0] || 'User').trim().slice(0, 100),
+        displayName: resolvedOwner.trim().slice(0, 100),
         role: currentRole,
         status: currentStatus,
         lastLoginAt: now,
         createdAt: createdAt,
         updatedAt: now,
       };
-      if (user.phoneNumber) {
-        profilePayload.phoneNumber = user.phoneNumber.trim().slice(0, 25);
+      if (resolvedOwner) {
+        profilePayload.ownerName = resolvedOwner.trim().slice(0, 100);
+      }
+      if (resolvedPhone) {
+        profilePayload.phoneNumber = resolvedPhone.trim().slice(0, 25);
+        profilePayload.phone = resolvedPhone.trim().slice(0, 25);
       }
       if (existingBusinessName) {
         profilePayload.businessName = existingBusinessName.slice(0, 100);
+      }
+      if (existingAddress) {
+        profilePayload.address = existingAddress.slice(0, 200);
+      }
+      if (typeof existingOnboardingCompleted === 'boolean') {
+        profilePayload.onboardingCompleted = existingOnboardingCompleted;
+      }
+      if (existingUserPin) {
+        profilePayload.userPin = existingUserPin.slice(0, 32);
       }
 
       // Save/update user profile in Firestore
       await setDoc(userDocRef, profilePayload, { merge: true });
 
       // Sync business profile locally
-      if (existingBusinessName || user.displayName) {
-        db.saveUserProfile({
-          ...(existingBusinessName ? { businessName: existingBusinessName } : {}),
-          ...(user.displayName ? { ownerName: user.displayName } : {}),
-          ...(user.email ? { email: user.email } : {}),
-        });
-      }
+      db.saveUserProfile({
+        ...(existingBusinessName ? { businessName: existingBusinessName } : {}),
+        ...(resolvedOwner ? { ownerName: resolvedOwner } : {}),
+        ...(resolvedPhone ? { phone: resolvedPhone } : {}),
+        ...(existingAddress ? { address: existingAddress } : {}),
+        ...(typeof existingOnboardingCompleted === 'boolean' ? { onboardingCompleted: existingOnboardingCompleted } : {}),
+        ...(existingUserPin ? { pinCode: existingUserPin } : {}),
+        ...(user.email ? { email: user.email } : {}),
+      });
 
       // Record login audit event
       try {
@@ -343,7 +380,12 @@ class FirebaseSyncService {
     email: string,
     password: string,
     displayName: string,
-    businessName?: string
+    businessName?: string,
+    options?: {
+      phone?: string;
+      address?: string;
+      accountCategory?: 'personal' | 'business' | 'small_shop';
+    }
   ): Promise<AppUser> {
     const cleanEmail = email.trim();
     const cleanDisplayName = (displayName || cleanEmail.split('@')[0] || 'User').trim().slice(0, 100);
@@ -374,14 +416,23 @@ class FirebaseSyncService {
       id: user.uid,
       email: cleanEmail,
       displayName: cleanDisplayName,
+      ownerName: cleanDisplayName,
       role: isOwnerAdmin ? 'admin' : 'user',
       status: 'active',
       createdAt: now,
       updatedAt: now,
       lastLoginAt: now,
+      onboardingCompleted: true,
     };
     if (cleanBusinessName) {
       profileData.businessName = cleanBusinessName;
+    }
+    if (options?.phone) {
+      profileData.phoneNumber = options.phone.trim().slice(0, 25);
+      profileData.phone = options.phone.trim().slice(0, 25);
+    }
+    if (options?.address) {
+      profileData.address = options.address.trim().slice(0, 200);
     }
 
     // CRITICAL: Do NOT silently swallow errors! Throw so the UI/caller knows if Firestore write failed.
@@ -409,7 +460,7 @@ class FirebaseSyncService {
       email: user.email || cleanEmail,
       displayName: cleanDisplayName,
       photoURL: user.photoURL,
-      phoneNumber: user.phoneNumber,
+      phoneNumber: options?.phone || user.phoneNumber,
     };
 
     this.currentUser = appUser;
@@ -423,6 +474,10 @@ class FirebaseSyncService {
       ...(cleanBusinessName ? { businessName: cleanBusinessName } : {}),
       ownerName: cleanDisplayName,
       email: cleanEmail,
+      ...(options?.phone ? { phone: options.phone.trim() } : {}),
+      ...(options?.address ? { address: options.address.trim() } : {}),
+      ...(options?.accountCategory ? { accountCategory: options.accountCategory } : {}),
+      onboardingCompleted: true,
     });
 
     // 7. Start listeners and notify subscribers
@@ -606,6 +661,27 @@ class FirebaseSyncService {
         console.warn('Firestore transactions snapshot notification:', err);
       });
       this.unsubscribers.push(unsubTx);
+
+      // 3. Listen to User Profile & Business Details
+      const userDocRef = doc(firestore, 'users', userId);
+      const unsubUser = onSnapshot(userDocRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          const patch: Partial<UserProfile> = {};
+          if (data.businessName) patch.businessName = data.businessName;
+          if (data.ownerName || data.displayName) patch.ownerName = data.ownerName || data.displayName;
+          if (data.phoneNumber || data.phone) patch.phone = data.phoneNumber || data.phone;
+          if (data.address) patch.address = data.address;
+          if (typeof data.onboardingCompleted === 'boolean') patch.onboardingCompleted = data.onboardingCompleted;
+          if (data.userPin || data.pinCode) patch.pinCode = data.userPin || data.pinCode;
+          if (Object.keys(patch).length > 0) {
+            db.saveUserProfile(patch);
+          }
+        }
+      }, (err) => {
+        console.warn('Firestore user profile snapshot notification:', err);
+      });
+      this.unsubscribers.push(unsubUser);
     } catch (err) {
       console.warn('Firestore offline or listener warning, using local cache', err);
     }
@@ -648,7 +724,7 @@ class FirebaseSyncService {
       await setDoc(docRef, {
         id: tx.id,
         userId: this.currentUser.uid,
-        personId: tx.contactId,
+        personId: tx.contactId || '',
         type: tx.type === 'given' ? 'give' : tx.type === 'borrowed' ? 'take' : tx.type,
         amount: tx.amount,
         date: tx.date,
@@ -661,9 +737,11 @@ class FirebaseSyncService {
         createdAt: tx.createdAt,
       });
 
-      const contact = db.getContactById(tx.contactId);
-      if (contact) {
-        await this.updatePublicStatement(contact);
+      if (tx.contactId) {
+        const contact = db.getContactById(tx.contactId);
+        if (contact) {
+          await this.updatePublicStatement(contact);
+        }
       }
       db.recordSyncSuccess();
     } catch (e) {
@@ -720,22 +798,41 @@ class FirebaseSyncService {
       const payload: Record<string, any> = {
         id: this.currentUser.uid,
         updatedAt: new Date().toISOString(),
+        email: (this.currentUser.email || '').trim().slice(0, 128),
       };
-      if (profile.ownerName || this.currentUser.displayName) {
-        payload.displayName = (profile.ownerName || this.currentUser.displayName || 'User').trim().slice(0, 100);
-      }
+      const resolvedOwner = (profile.ownerName || this.currentUser.displayName || 'User').trim().slice(0, 100);
+      payload.displayName = resolvedOwner;
+      payload.ownerName = resolvedOwner;
+
       if (profile.businessName) {
         payload.businessName = profile.businessName.trim().slice(0, 100);
       }
       if (profile.phone) {
         payload.phoneNumber = profile.phone.trim().slice(0, 25);
+        payload.phone = profile.phone.trim().slice(0, 25);
       }
       if (profile.address) {
         payload.address = profile.address.trim().slice(0, 200);
       }
-      if (this.currentUser.email) {
-        payload.email = this.currentUser.email;
+      if (typeof profile.onboardingCompleted === 'boolean') {
+        payload.onboardingCompleted = profile.onboardingCompleted;
       }
+      if (profile.pinCode) {
+        payload.userPin = profile.pinCode.trim().slice(0, 32);
+      }
+
+      // Preserve existing createdAt or set a fallback so isValidUserProfile validation passes
+      try {
+        const snap = await getDoc(userDocRef);
+        if (snap.exists() && snap.data().createdAt) {
+          payload.createdAt = snap.data().createdAt;
+        } else {
+          payload.createdAt = new Date().toISOString();
+        }
+      } catch (_) {
+        payload.createdAt = new Date().toISOString();
+      }
+
       await setDoc(userDocRef, payload, { merge: true });
       db.recordSyncSuccess();
     } catch (e) {

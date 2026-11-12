@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApp, ActiveTab } from '../../context/AppContext';
 import { useI18n } from '../../i18n/I18nContext';
-import { LayoutDashboard, Users, BookOpen, Clock, Menu } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, Clock, Menu, Wallet } from 'lucide-react';
 
 interface MobileNavBarProps {
   onOpenMenu: () => void;
@@ -9,13 +9,14 @@ interface MobileNavBarProps {
 
 export const MobileNavBar: React.FC<MobileNavBarProps> = ({ onOpenMenu }) => {
   const { activeTab, setActiveTab } = useApp();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
 
   const navItems: { id: ActiveTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'dashboard', label: t('navDashboard'), icon: <LayoutDashboard size={18} /> },
-    { id: 'ledger', label: t('navLedger'), icon: <BookOpen size={18} /> },
-    { id: 'contacts', label: t('navContacts'), icon: <Users size={18} /> },
-    { id: 'reminders', label: t('navReminders'), icon: <Clock size={18} /> },
+    { id: 'dashboard', label: t('navDashboard'), icon: <LayoutDashboard size={16} /> },
+    { id: 'ledger', label: t('navLedger'), icon: <BookOpen size={16} /> },
+    { id: 'expenses', label: language === 'bn' ? 'খরচ' : 'Expenses', icon: <Wallet size={16} /> },
+    { id: 'contacts', label: t('navContacts'), icon: <Users size={16} /> },
+    { id: 'reminders', label: t('navReminders'), icon: <Clock size={16} /> },
   ];
 
   return (

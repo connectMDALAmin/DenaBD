@@ -21,6 +21,7 @@ import { ContactDetailView } from './features/contacts/ContactDetailView';
 import { ContactModal } from './features/contacts/ContactModal';
 import { TransactionList } from './features/ledger/TransactionList';
 import { TransactionModal } from './features/ledger/TransactionModal';
+import { ExpensesView } from './features/expenses/ExpensesView';
 import { RemindersView } from './features/reminders/RemindersView';
 import { PublicLookupView } from './features/public-lookup/PublicLookupView';
 import { BackupRestoreView } from './features/backup/BackupRestoreView';
@@ -29,7 +30,7 @@ import { PinLockModal } from './features/settings/PinLockModal';
 import { AndroidBuildGuide } from './features/android-guide/AndroidBuildGuide';
 import { AdminPanelView } from './features/admin/AdminPanelView';
 
-import { Contact, Transaction } from './types/accounting';
+import { Contact, Transaction, TransactionType } from './types/accounting';
 import { IslamicQuoteModal } from './components/xp/IslamicQuoteModal';
 import { DeveloperInfoModal } from './components/xp/DeveloperInfoModal';
 import { XPLogOffDialog } from './components/xp/XPLogOffDialog';
@@ -57,6 +58,7 @@ const MainAppContent: React.FC = () => {
     saveContact,
     saveTransaction,
     userProfile,
+    saveUserProfile,
     firebaseUser,
     isAuthReady,
     isAdmin,
@@ -99,6 +101,7 @@ const MainAppContent: React.FC = () => {
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [preselectedContactId, setPreselectedContactId] = useState<string | null>(null);
+  const [preselectedTxType, setPreselectedTxType] = useState<TransactionType | undefined>(undefined);
 
   // Islamic Quote (Daily login popup) & Developer Info Modals
   const [isIslamicQuoteOpen, setIsIslamicQuoteOpen] = useState(false);
@@ -122,19 +125,51 @@ const MainAppContent: React.FC = () => {
   }, []);
 
   // New User Onboarding Setup Check:
-  // Prompt business setup modal for new users who haven't completed onboarding or have missing business info
+  // Never prompt established users on login. Only for brand new accounts with zero configuration.
   useEffect(() => {
-    if (!firebaseUser) return;
-    const isProfileUnset =
-      !userProfile.onboardingCompleted &&
-      (!userProfile.phone || !userProfile.address || !userProfile.businessName || userProfile.businessName === 'আমার ব্যবসা');
-    if (isProfileUnset) {
-      const timer = setTimeout(() => {
-        setIsNewUserSetupOpen(true);
-      }, 500);
-      return () => clearTimeout(timer);
+    if (!firebaseUser || !isAuthReady || isInitialBooting) return;
+
+    // 1. If user already completed or dismissed onboarding, never prompt
+    const isDismissed = localStorage.getItem(`denapawna_setup_dismissed_${firebaseUser.uid}`) === 'true';
+    if (userProfile.onboardingCompleted || isDismissed) {
+      if (isNewUserSetupOpen) setIsNewUserSetupOpen(false);
+      return;
     }
-  }, [firebaseUser, userProfile.onboardingCompleted, userProfile.businessName, userProfile.phone, userProfile.address]);
+
+    // 2. If user already has custom business name, owner name, phone, or address configured,
+    // they are an established user. Permanently mark onboarding as completed.
+    const hasCustomBusiness =
+      Boolean(userProfile.businessName &&
+      userProfile.businessName.trim() !== '' &&
+      userProfile.businessName !== 'আমার ব্যবসা');
+    const hasCustomOwner =
+      Boolean(userProfile.ownerName &&
+      userProfile.ownerName.trim() !== '' &&
+      userProfile.ownerName !== 'ব্যবহারকারী');
+    const hasPhoneOrAddress = Boolean(userProfile.phone?.trim() || userProfile.address?.trim());
+    const hasEstablishedData = contacts.length > 0 || transactions.length > 0;
+
+    if (hasCustomBusiness || hasCustomOwner || hasPhoneOrAddress || hasEstablishedData) {
+      saveUserProfile({ onboardingCompleted: true });
+      try {
+        localStorage.setItem(`denapawna_setup_dismissed_${firebaseUser.uid}`, 'true');
+      } catch (_) {}
+      if (isNewUserSetupOpen) setIsNewUserSetupOpen(false);
+      return;
+    }
+  }, [
+    firebaseUser,
+    isAuthReady,
+    isInitialBooting,
+    userProfile.onboardingCompleted,
+    userProfile.businessName,
+    userProfile.ownerName,
+    userProfile.phone,
+    userProfile.address,
+    contacts.length,
+    transactions.length,
+    isNewUserSetupOpen,
+  ]);
 
   // Daily Islamic Quote Auto-popup:
   // Display one Islamic quote popup after login on the user's first successful login of each day (Asia/Dhaka timezone).
@@ -257,15 +292,17 @@ const MainAppContent: React.FC = () => {
     setIsContactModalOpen(true);
   };
 
-  const handleOpenNewTransaction = (contactId?: string) => {
+  const handleOpenNewTransaction = (contactId?: string, defaultType?: TransactionType) => {
     setEditingTx(null);
     setPreselectedContactId(contactId || null);
+    setPreselectedTxType(defaultType);
     setIsTxModalOpen(true);
   };
 
   const handleEditTransaction = (tx: Transaction) => {
     setEditingTx(tx);
-    setPreselectedContactId(tx.contactId);
+    setPreselectedContactId(tx.contactId || null);
+    setPreselectedTxType(tx.type);
     setIsTxModalOpen(true);
   };
 
@@ -308,6 +345,11 @@ const MainAppContent: React.FC = () => {
         };
       case 'ledger':
         return { title: `${t('navLedger')} (${userProfile.businessName})`, icon: 'money' };
+      case 'expenses':
+        return {
+          title: language === 'bn' ? 'ব্যক্তিগত খরচের হিসাব — দেনাপাওনা' : 'Personal Expense Management — DenaPawna',
+          icon: 'expense',
+        };
       case 'reminders':
         return { title: t('remindersTitle'), icon: 'reminders' };
       case 'analytics':
@@ -513,6 +555,16 @@ const MainAppContent: React.FC = () => {
             }}
           />
           <XPDesktopIcon
+            name="expense"
+            label={language === 'bn' ? 'খরচের হিসাব' : 'Expenses'}
+            sublabel="Personal"
+            isActive={!isAppMinimized && activeTab === 'expenses'}
+            onClick={() => {
+              setIsAppMinimized(false);
+              setActiveTab('expenses');
+            }}
+          />
+          <XPDesktopIcon
             name="reminders"
             label={t('navReminders')}
             sublabel="Due Dates"
@@ -612,8 +664,16 @@ const MainAppContent: React.FC = () => {
             >
               {activeTab === 'dashboard' && (
                 <DashboardView
-                  onOpenNewTransaction={() => handleOpenNewTransaction()}
+                  onOpenNewTransaction={(type) => handleOpenNewTransaction(undefined, type)}
                   onOpenNewContact={handleOpenNewContact}
+                  onOpenNewExpense={() => handleOpenNewTransaction(undefined, 'expense')}
+                />
+              )}
+
+              {activeTab === 'expenses' && (
+                <ExpensesView
+                  onOpenNewExpense={() => handleOpenNewTransaction(undefined, 'expense')}
+                  onEditExpense={handleEditTransaction}
                 />
               )}
 
@@ -910,6 +970,7 @@ const MainAppContent: React.FC = () => {
         }}
         initialTransaction={editingTx}
         preselectedContactId={preselectedContactId}
+        initialType={preselectedTxType}
       />
       </div>
 

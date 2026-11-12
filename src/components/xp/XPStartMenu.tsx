@@ -115,6 +115,20 @@ export const XPStartMenu: React.FC<XPStartMenuProps> = ({
 
             <button
               type="button"
+              onClick={() => handleNav('expenses')}
+              className={`w-full flex items-center gap-2.5 p-2 rounded hover:bg-[#2F71CD] hover:text-white text-left transition-colors cursor-pointer ${
+                activeTab === 'expenses' ? 'bg-[#D3E5FA] font-bold text-[#003399]' : 'text-gray-800'
+              }`}
+            >
+              <XPIcon name="expense" size={24} />
+              <div className="min-w-0">
+                <div className="text-xs truncate">{language === 'bn' ? 'খরচের হিসাব' : 'Expenses'}</div>
+                <div className="text-[10px] text-gray-500 hover:text-white truncate">Personal Spending</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
               onClick={() => handleNav('reminders')}
               className={`w-full flex items-center gap-2.5 p-2 rounded hover:bg-[#2F71CD] hover:text-white text-left transition-colors cursor-pointer ${
                 activeTab === 'reminders' ? 'bg-[#D3E5FA] font-bold text-[#003399]' : 'text-gray-800'

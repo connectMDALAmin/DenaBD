@@ -178,7 +178,7 @@ export function exportLedgerPdfStatement(
 
   const tableRows = activeTxs.map((t) => [
     t.date,
-    contactMap.get(t.contactId) || 'Unknown',
+    t.contactId ? contactMap.get(t.contactId) || 'Unknown' : 'Personal Expense',
     t.type.toUpperCase(),
     t.category || '—',
     t.referenceNumber || '—',

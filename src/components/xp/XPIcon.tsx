@@ -21,7 +21,8 @@ interface XPIconProps {
     | 'sync'
     | 'computer'
     | 'recyclebin'
-    | 'documents';
+    | 'documents'
+    | 'expense';
   className?: string;
   size?: number;
 }
@@ -229,6 +230,24 @@ export const XPIcon: React.FC<XPIconProps> = ({ name, className = '', size = 24 
           <line x1="12" y1="18" x2="19" y2="18" stroke="#777777" strokeWidth="1" strokeLinecap="round" />
           {/* Folder Front Leaf */}
           <path d="M4 14C4 12.9 4.9 12 6 12H26C27.1 12 28 12.9 28 14L27 25C27 26.1 26.1 27 25 27H7C5.9 27 5 26.1 4.9 25L4 14Z" fill="#F8C758" stroke="#B87B19" strokeWidth="1.2" />
+        </svg>
+      );
+
+    case 'expense':
+      return (
+        <svg width={size} height={size} viewBox="0 0 32 32" fill="none" className={className}>
+          {/* Windows XP Expense / Bill Icon */}
+          <rect x="5" y="4" width="22" height="25" rx="2" fill="#FAFAFA" stroke="#708090" strokeWidth="1.2" />
+          {/* Top Receipt header with serrated/tab look */}
+          <path d="M5 6H27V10H5V6Z" fill="#D32F2F" />
+          <line x1="8" y1="8" x2="16" y2="8" stroke="#FFFFFF" strokeWidth="1.2" strokeLinecap="round" />
+          {/* Receipt lines */}
+          <line x1="8" y1="14" x2="20" y2="14" stroke="#555555" strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="8" y1="18" x2="16" y2="18" stroke="#777777" strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="8" y1="22" x2="18" y2="22" stroke="#777777" strokeWidth="1.2" strokeLinecap="round" />
+          {/* Red minus / cash-out badge */}
+          <circle cx="22" cy="22" r="5.5" fill="#E53935" stroke="#B71C1C" strokeWidth="1" />
+          <line x1="19.5" y1="22" x2="24.5" y2="22" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       );
 

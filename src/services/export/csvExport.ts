@@ -37,7 +37,7 @@ export function exportTransactionsToCsv(
   const rows = transactions.map((t) => [
     escapeCsv(t.id),
     escapeCsv(t.date),
-    escapeCsv(contactMap.get(t.contactId) || 'Unknown'),
+    escapeCsv(t.contactId ? contactMap.get(t.contactId) || 'Unknown' : 'Personal Expense'),
     escapeCsv(t.type),
     escapeCsv(fromMinorUnits(t.amount).toFixed(2)),
     escapeCsv(t.paymentMethod),

@@ -42,11 +42,13 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         matchesDate = tx.date.startsWith(thisMonthStr);
       }
 
-      const contact = contactMap.get(tx.contactId);
+      const contact = tx.contactId ? contactMap.get(tx.contactId) : undefined;
+      const isExpense = tx.type === 'expense';
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
         (contact && contact.name.toLowerCase().includes(q)) ||
+        (isExpense && (language === 'bn' ? 'ব্যক্তিগত খরচ' : 'expense').includes(q)) ||
         tx.category.toLowerCase().includes(q) ||
         (tx.referenceNumber && tx.referenceNumber.toLowerCase().includes(q)) ||
         (tx.notes && tx.notes.toLowerCase().includes(q));
@@ -188,8 +190,9 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                 </tr>
               ) : (
                 filteredTransactions.map((tx) => {
-                  const contact = contactMap.get(tx.contactId);
+                  const contact = tx.contactId ? contactMap.get(tx.contactId) : undefined;
                   const isCancelled = tx.status === 'cancelled';
+                  const isExpense = tx.type === 'expense';
                   return (
                     <tr
                       key={tx.id}
@@ -201,13 +204,19 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                         {tx.date}
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => onSelectContact(tx.contactId)}
-                          className="font-bold text-[#0055EA] hover:underline text-left cursor-pointer"
-                        >
-                          {contact?.name || 'Unknown Contact'}
-                        </button>
+                        {isExpense ? (
+                          <span className="font-bold text-red-600">
+                            {language === 'bn' ? 'ব্যক্তিগত খরচ (নিজ)' : 'Personal Expense'}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => tx.contactId && onSelectContact(tx.contactId)}
+                            className="font-bold text-[#0055EA] hover:underline text-left cursor-pointer"
+                          >
+                            {contact?.name || 'Unknown Contact'}
+                          </button>
+                        )}
                         {tx.referenceNumber && (
                           <div className="text-[10px] text-gray-500 font-mono">
                             Ref: {tx.referenceNumber}

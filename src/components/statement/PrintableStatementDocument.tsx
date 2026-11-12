@@ -208,7 +208,7 @@ export const PrintableStatementDocument: React.FC<PrintableStatementDocumentProp
                     </td>
                     {!targetContact && (
                       <td className="border border-gray-300 px-2 py-1 font-semibold text-gray-900">
-                        {contactMap.get(tx.contactId) || '—'}
+                        {tx.contactId ? contactMap.get(tx.contactId) || '—' : tx.type === 'expense' ? 'ব্যক্তিগত খরচ (Expense)' : '—'}
                       </td>
                     )}
                     <td className="border border-gray-300 px-2 py-1 font-medium">
