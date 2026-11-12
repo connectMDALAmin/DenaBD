@@ -308,7 +308,7 @@ export const XPLogonScreen: React.FC = () => {
           >
             <Search size={13} className="text-[#F2A900]" />
             <span className="whitespace-nowrap">
-              Search Transaction by Phone Number
+              {language === 'bn' ? 'নম্বর দিয়ে লেনদেন অনুসন্ধান' : 'Search Transaction by Phone Number'}
             </span>
           </button>
 
@@ -392,12 +392,12 @@ export const XPLogonScreen: React.FC = () => {
                   <div>
                     <h2 className="font-bold text-xs sm:text-sm text-[#003399]">
                       {authMode === 'google'
-                        ? 'লগ-অন DenaPawna'
+                        ? language === 'bn' ? 'লগ-অন DenaPawna' : 'Log on to DenaPawna'
                         : authMode === 'email-login'
                         ? language === 'bn' ? 'ইমেইল দিয়ে লগইন করুন' : 'Email Sign-In'
                         : authMode === 'email-register'
                         ? language === 'bn' ? 'নতুন একাউন্ট রেজিস্ট্রেশন' : 'Register New Account'
-                        : language === 'bn' ? 'পাসওয়ার্ড রিসেট (Forgot Password)' : 'Reset Password'}
+                        : language === 'bn' ? 'পাসওয়ার্ড রিসেট' : 'Reset Password'}
                     </h2>
                     <p className="text-[10px] text-gray-600">
                       {authMode === 'forgot-password'
@@ -433,7 +433,7 @@ export const XPLogonScreen: React.FC = () => {
                       authMode === 'email-login' ? 'bg-[#0055EA] text-white shadow-xs' : 'text-gray-700 hover:text-black'
                     }`}
                   >
-                    Email
+                    {language === 'bn' ? 'ইমেইল' : 'Email'}
                   </button>
                   <button
                     type="button"
@@ -446,7 +446,7 @@ export const XPLogonScreen: React.FC = () => {
                       authMode === 'email-register' ? 'bg-[#0055EA] text-white shadow-xs' : 'text-gray-700 hover:text-black'
                     }`}
                   >
-                    Register
+                    {language === 'bn' ? 'রেজিস্ট্রেশন' : 'Register'}
                   </button>
                 </div>
               </div>
